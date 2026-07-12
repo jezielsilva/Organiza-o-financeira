@@ -19,7 +19,7 @@ import {
 } from "./services/storageService";
 import { calcularProjecao, rotacionarJanelaTemporal } from "./services/calculationEngine";
 import { exportarBackupDoApp } from "./services/backupService";
-import { pushToServer, pushDomainsToServer, MergedDomains } from "./services/syncService";
+import { pushToServer, pushDomainsToServer, MergedDomains, getSyncCode, isFirebaseConfigured, SyncStatus } from "./services/syncService";
 import Dashboard from "./components/Dashboard";
 import FixedBills from "./components/FixedBills";
 import CardInvoices from "./components/CardInvoices";
@@ -27,7 +27,8 @@ import PlannedInstallments from "./components/PlannedInstallments";
 import Reports from "./components/Reports";
 import Onboarding from "./components/Onboarding";
 import SyncManager from "./components/SyncManager";
-import { LayoutDashboard, Wallet, CreditCard, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, Coins, Plus, Download, Share, Smartphone } from "lucide-react";
+import SyncPage from "./components/SyncPage";
+import { LayoutDashboard, Wallet, CreditCard, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, Coins, Plus, Download, Share, Smartphone, Cloud, CloudOff, CloudUpload, WifiOff, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 // --- Dados Iniciais de Demonstração (Caso o localStorage esteja vazio) ---
@@ -118,6 +119,13 @@ export default function App() {
   const [storageError, setStorageError] = useState<boolean>(false);
   // Versão dos dados — incrementada em cada mudança para disparar push de sincronização
   const [dataVersion, setDataVersion] = useState<number>(0);
+
+  // ─── Estado de Sincronização (elevado para App para ser compartilhado entre SyncManager e SyncPage) ──
+  const [syncCode, setSyncCodeState] = useState<string | null>(getSyncCode);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => {
+    if (!isFirebaseConfigured()) return "not_configured";
+    return getSyncCode() ? "synced" : "no_code";
+  });
 
   // --- Estados do PWA Install Prompt ---
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -482,13 +490,27 @@ export default function App() {
   };
 
   // Itens do Menu de Navegação
+  // mobileBottomBar: false = não aparece na barra inferior do mobile (fica visível só na sidebar/menu hamburguer)
   const navigationItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "fixas", label: "Renda & Contas Fixas", icon: Wallet },
-    { id: "cartao", label: "Fatura do Cartão", icon: CreditCard },
-    { id: "planejadas", label: "Parcelas Simuladas", icon: ArrowUpRight },
-    { id: "relatorios", label: "Relatórios & Backup", icon: BarChart3 },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, mobileBottomBar: true },
+    { id: "fixas", label: "Renda & Contas Fixas", icon: Wallet, mobileBottomBar: true },
+    { id: "cartao", label: "Fatura do Cartão", icon: CreditCard, mobileBottomBar: true },
+    { id: "planejadas", label: "Parcelas Simuladas", icon: ArrowUpRight, mobileBottomBar: true },
+    { id: "relatorios", label: "Relatórios & Backup", icon: BarChart3, mobileBottomBar: true },
+    { id: "sincronizacao", label: "Sincronização", icon: Cloud, mobileBottomBar: false },
   ];
+
+  // Helpers de UI para o badge de status da sincronização no header
+  const syncStatusConfig: Record<SyncStatus, { icon: React.ElementType; label: string; color: string; bg: string; dot: string }> = {
+    no_code:        { icon: CloudOff,    label: "Compartilhar",   color: "text-zinc-400",   bg: "bg-zinc-100",    dot: "bg-zinc-300" },
+    idle:           { icon: Cloud,       label: "Conectado",      color: "text-sky-500",    bg: "bg-sky-50",      dot: "bg-sky-400" },
+    syncing:        { icon: Loader2,     label: "Sincronizando",  color: "text-amber-500",  bg: "bg-amber-50",   dot: "bg-amber-400" },
+    synced:         { icon: CloudUpload, label: "Sincronizado",   color: "text-emerald-600",bg: "bg-emerald-50", dot: "bg-emerald-400" },
+    error:          { icon: WifiOff,     label: "Erro",           color: "text-rose-500",   bg: "bg-rose-50",    dot: "bg-rose-400" },
+    not_configured: { icon: CloudOff,   label: "Compartilhar",   color: "text-zinc-400",   bg: "bg-zinc-100",    dot: "bg-amber-400" },
+  };
+  const currentSyncUi = syncStatusConfig[syncStatus];
+  const SyncStatusIcon = currentSyncUi.icon;
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col font-sans antialiased w-full max-w-full overflow-x-hidden" id="main-app-shell">
@@ -550,13 +572,30 @@ export default function App() {
             </button>
           )}
 
-          {/* Botão de Sincronização Compartilhada */}
+          {/* Controlador Headless de Sincronização (sem UI) */}
           <SyncManager
-            onSyncActivated={handleSyncActivated}
+            syncCode={syncCode}
             onRemoteDataReceived={handleRemoteData}
+            onStatusChange={setSyncStatus}
             currentAppData={currentAppData}
             dataVersion={dataVersion}
           />
+
+          {/* Badge de Status de Sync — navega para a aba de Sincronização ao clicar */}
+          <button
+            id="sync-status-badge"
+            onClick={() => setActiveTab("sincronizacao")}
+            title={syncCode ? `Sincronizado: ${syncCode}` : "Ativar Compartilhamento"}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+              activeTab === "sincronizacao"
+                ? "bg-zinc-900 text-white border-zinc-900"
+                : `${currentSyncUi.bg} border-current/20 ${currentSyncUi.color} hover:opacity-80`
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${activeTab === "sincronizacao" ? "bg-emerald-400" : currentSyncUi.dot} ${syncStatus === "syncing" ? "animate-pulse" : ""}`} />
+            <SyncStatusIcon className={`w-3.5 h-3.5 shrink-0 ${syncStatus === "syncing" ? "animate-spin" : ""}`} />
+            <span className="hidden sm:block">{currentSyncUi.label}</span>
+          </button>
         </div>
       </header>
 
@@ -745,6 +784,16 @@ export default function App() {
                   onExportBackup={handleExportBackup}
                 />
               )}
+
+              {activeTab === "sincronizacao" && (
+                <SyncPage
+                  syncCode={syncCode}
+                  syncStatus={syncStatus}
+                  onSyncCodeChange={setSyncCodeState}
+                  onStatusChange={setSyncStatus}
+                  onSyncActivated={handleSyncActivated}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -822,9 +871,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* BARRA DE NAVEGAÇÃO INFERIOR MOBILE */}
+      {/* BARRA DE NAVEGAÇÃO INFERIOR MOBILE — apenas itens com mobileBottomBar: true */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200 md:hidden flex items-center justify-around py-1.5 shadow-lg pb-safe-bottom">
-        {navigationItems.map((item) => {
+        {navigationItems.filter((item) => item.mobileBottomBar).map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
