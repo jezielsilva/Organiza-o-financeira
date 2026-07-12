@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FaturaEstruturada",
+  "description": "Esquema JSON estruturado contendo dados consolidados de uma fatura de cartão de crédito brasileira.",
+  "type": "object",
+  "properties": {
+    "nome_banco": {
+      "type": "string",
+      "description": "Nome da instituição financeira emitente da fatura (ex: Carrefour Banco)."
+    },
+    "data_vencimento": {
+      "type": "string",
+      "pattern": "^\\d{2}/\\d{2}/\\d{4}$",
+      "description": "Data de vencimento da fatura formatada como DD/MM/AAAA."
+    },
+    "valor_total": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Valor total cobrado na fatura do cartão."
+    },
+    "lancamentos_por_portador": {
+      "type": "object",
+      "description": "Dicionário agrupando a lista de lançamentos por nome do portador do cartão.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "string",
+              "pattern": "^\\d{2}/\\d{2}$",
+              "description": "Data do lançamento formatada como DD/MM."
+            },
+            "descricao": {
+              "type": "string",
+              "description": "Descrição comercial da transação conforme exibido na fatura."
+            },
+            "valor": {
+              "type": "number",
+              "description": "Valor decimal da transação em Reais (R$). Valores negativos indicam estorno/crédito."
+            }
+          },
+          "required": ["data", "descricao", "valor"]
+        }
+      }
+    }
+  },
+  "required": ["nome_banco", "data_vencimento", "valor_total", "lancamentos_por_portador"]
+}

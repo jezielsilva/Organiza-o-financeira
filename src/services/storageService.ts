@@ -114,8 +114,6 @@ import type {
   ConfiguracoesUsuario,
   MesCalculadoSalvo,
   AppStorageSchema,
-  IncomeSource,
-  FixedBill,
 } from "../types";
 
 const SCHEMA_KEYS = {

@@ -204,7 +204,13 @@ export default function SyncManager({
       {/* Botão de Status na Header */}
       <button
         id="sync-manager-toggle"
-        onClick={() => setIsOpen((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((v) => !v);
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+        }}
         title={syncCode ? `Sincronizado: ${syncCode}` : "Ativar Compartilhamento"}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${current.bg} border-current/20 ${current.color} hover:opacity-80`}
       >
@@ -222,6 +228,8 @@ export default function SyncManager({
             exit={{ opacity: 0, scale: 0.95, y: -8 }}
             transition={{ duration: 0.15 }}
             className="absolute right-0 top-full mt-2 w-80 bg-white border border-zinc-200 rounded-2xl shadow-xl z-50 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
           >
             {/* Header do Painel */}
             <div className="px-4 pt-4 pb-3 border-b border-zinc-100">

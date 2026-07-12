@@ -27,7 +27,7 @@ import PlannedInstallments from "./components/PlannedInstallments";
 import Reports from "./components/Reports";
 import Onboarding from "./components/Onboarding";
 import SyncManager from "./components/SyncManager";
-import { LayoutDashboard, Wallet, CreditCard, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, Coins, Plus } from "lucide-react";
+import { LayoutDashboard, Wallet, CreditCard, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, Coins, Plus, Download, Share, Smartphone } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 // --- Dados Iniciais de Demonstração (Caso o localStorage esteja vazio) ---
@@ -119,6 +119,12 @@ export default function App() {
   // Versão dos dados — incrementada em cada mudança para disparar push de sincronização
   const [dataVersion, setDataVersion] = useState<number>(0);
 
+  // --- Estados do PWA Install Prompt ---
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState<boolean>(false);
+  const [isIOS, setIsIOS] = useState<boolean>(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState<boolean>(false);
+
   // ─── Verificação de Primeiro Acesso (schema v2) ────────────────────────────
   // Usa configuracoesStorage.isOnboardingCompleto() como fonte de verdade.
   // Fallback: checa também as chaves legadas (fin_*) para usuários antigos.
@@ -204,6 +210,50 @@ export default function App() {
     setShowOnboarding(false);
   };
 
+  // ─── PWA: Escuta o evento beforeinstallprompt e detecta iOS ───────────────────
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Previne que o Chrome exiba o banner padrão imediatamente
+      e.preventDefault();
+      // Salva o evento para disparar quando o usuário clicar no botão
+      setDeferredPrompt(e);
+      // Mostra o botão/banner de instalação
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    // Detecta se o dispositivo é iOS/Safari
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    // Verifica se NÃO está rodando no modo instalado (standalone)
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone;
+
+    if (isIOSDevice && !isStandalone) {
+      setIsIOS(true);
+      setShowInstallBanner(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (isIOS) {
+      // Exibe modal explicativo para iOS/Safari
+      setShowIOSInstructions(true);
+    } else if (deferredPrompt) {
+      // Dispara o prompt nativo do Android/Chrome
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        console.log("Usuário aceitou a instalação do PWA.");
+      }
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    }
+  };
+
   // ─── Sync Check (Resiliência contra limpeza do cache do SO) ──────────────────
   // Toda vez que a janela ganha foco (ex: usuário minimizou e voltou),
   // valida e recarrega os dados do storage para garantir que não sumiram.
@@ -249,10 +299,40 @@ export default function App() {
   // Flag para rastrear se a mudança de estado atual veio do servidor (evita loops de sincronização)
   const isIncomingRemoteUpdate = useRef(false);
 
+  // ─── Recalcula projeção e salva no schema v2 estruturado ao mudar rendas ou contas fixas ───
+  useEffect(() => {
+    if (showOnboarding) return;
+
+    // Salva rendas e contas fixas no schema v2 estruturado
+    transacoesFixasStorage.save(incomes, fixedBills);
+
+    // Recalcula projeção de 12 meses usando o Motor de Cálculo
+    const config = configuracoesStorage.load();
+    const mesInicial = config?.mesOnboarding || selectedMonth || new Date().toISOString().substring(0, 7);
+
+    const projecao = calcularProjecao({
+      mesInicial,
+      rendas: incomes,
+      contasFixas: fixedBills,
+    });
+
+    setMesesCalculados((prev) => {
+      const isDiff = JSON.stringify(prev) !== JSON.stringify(projecao.meses);
+      if (isDiff) {
+        mesesCalculadosStorage.save(projecao.meses);
+        return projecao.meses;
+      }
+      return prev;
+    });
+  }, [incomes, fixedBills, showOnboarding, selectedMonth]);
+
   // --- Sincronização automática com LocalStorage ---
   useEffect(() => {
     try {
       fixedBillsStorage.saveAll(fixedBills);
+      if (!showOnboarding) {
+        transacoesFixasStorage.save(incomes, fixedBills);
+      }
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
@@ -266,6 +346,9 @@ export default function App() {
   useEffect(() => {
     try {
       incomesStorage.saveAll(incomes);
+      if (!showOnboarding) {
+        transacoesFixasStorage.save(incomes, fixedBills);
+      }
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
@@ -470,6 +553,18 @@ export default function App() {
             </button>
           </div>
 
+          {/* Botão de Instalar App (PWA) */}
+          {showInstallBanner && (
+            <button
+              onClick={handleInstallClick}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/10 shrink-0 cursor-pointer"
+              title="Instalar Aplicativo"
+            >
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Instalar App</span>
+            </button>
+          )}
+
           {/* Botão de Sincronização Compartilhada */}
           <SyncManager
             onSyncActivated={handleSyncActivated}
@@ -479,6 +574,45 @@ export default function App() {
           />
         </div>
       </header>
+
+      {/* MODAL DE INSTRUÇÕES DE INSTALAÇÃO NO IOS */}
+      <AnimatePresence>
+        {showIOSInstructions && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-xs overflow-hidden rounded-2xl bg-white p-5 shadow-xl border border-zinc-200"
+            >
+              <h3 className="text-xs font-black text-zinc-900 flex items-center gap-2 mb-2 uppercase tracking-wide">
+                <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                Instalar no iOS (Safari)
+              </h3>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mb-3">
+                Para instalar este app no seu iPhone ou iPad, siga os passos no navegador <strong>Safari</strong>:
+              </p>
+              <ol className="space-y-2 text-[11px] text-zinc-700 list-decimal list-inside pl-0.5 mb-4 font-medium">
+                <li>
+                  Toque no botão de <strong>Compartilhar</strong> <Share className="w-3.5 h-3.5 inline text-zinc-500 mx-0.5" /> (na barra inferior do Safari).
+                </li>
+                <li>
+                  Role e toque em <strong>Adicionar à Tela de Início</strong> <Plus className="w-3.5 h-3.5 inline text-zinc-500 mx-0.5" />.
+                </li>
+                <li>
+                  Toque em <strong>Adicionar</strong> no canto superior direito.
+                </li>
+              </ol>
+              <button
+                onClick={() => setShowIOSInstructions(false)}
+                className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-bold uppercase tracking-wider rounded-xl transition-all"
+              >
+                Entendi
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* BANNER DE ERRO DE ARMAZENAMENTO */}
       <AnimatePresence>
