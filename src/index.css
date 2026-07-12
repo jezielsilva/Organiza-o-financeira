@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* Correções de Stacking Context para iOS/Safari (PWA) */
+
+#main-app-shell {
+  isolation: isolate;
+}
+
+.ios-sync-modal {
+  /* Força renderização em camada de GPU no WebKit para sobrepor transformações de ancestrais */
+  transform: translate3d(0, 0, 0) !important;
+  -webkit-transform: translate3d(0, 0, 0) !important;
+  -webkit-overflow-scrolling: touch;
+  z-index: 99999 !important;
+}
+

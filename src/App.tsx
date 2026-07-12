@@ -19,7 +19,7 @@ import {
 } from "./services/storageService";
 import { calcularProjecao, rotacionarJanelaTemporal } from "./services/calculationEngine";
 import { exportarBackupDoApp } from "./services/backupService";
-import { pushToServer } from "./services/syncService";
+import { pushToServer, pushDomainsToServer, MergedDomains } from "./services/syncService";
 import Dashboard from "./components/Dashboard";
 import FixedBills from "./components/FixedBills";
 import CardInvoices from "./components/CardInvoices";
@@ -297,7 +297,9 @@ export default function App() {
   }, []);
 
   // Flag para rastrear se a mudança de estado atual veio do servidor (evita loops de sincronização)
-  const isIncomingRemoteUpdate = useRef(false);
+  // Stores the set of domain keys currently being applied from a remote source.
+  // This prevents the local persistence useEffects from triggering a redundant push-back.
+  const incomingDomains = useRef<Set<string>>(new Set());
 
   // ─── Recalcula projeção e salva no schema v2 estruturado ao mudar rendas ou contas fixas ───
   useEffect(() => {
@@ -327,6 +329,8 @@ export default function App() {
   }, [incomes, fixedBills, showOnboarding, selectedMonth]);
 
   // --- Sincronização automática com LocalStorage ---
+  // Anti-loop: cada useEffect verifica se o domain veio de uma atualização remota.
+  // Se sim, persiste localmente (correto) mas NÃO dispara dataVersion (que causaria re-push).
   useEffect(() => {
     try {
       fixedBillsStorage.saveAll(fixedBills);
@@ -336,9 +340,9 @@ export default function App() {
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
-    if (isIncomingRemoteUpdate.current) {
-      // Se veio do servidor, não incrementa a versão (evita reenviar o que acabou de baixar)
-      return;
+    if (incomingDomains.current.has("fixedBills")) {
+      incomingDomains.current.delete("fixedBills");
+      return; // Não gera push de volta — veio do servidor
     }
     setDataVersion((v) => v + 1);
   }, [fixedBills]);
@@ -352,7 +356,8 @@ export default function App() {
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
-    if (isIncomingRemoteUpdate.current) {
+    if (incomingDomains.current.has("incomes")) {
+      incomingDomains.current.delete("incomes");
       return;
     }
     setDataVersion((v) => v + 1);
@@ -364,7 +369,8 @@ export default function App() {
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
-    if (isIncomingRemoteUpdate.current) {
+    if (incomingDomains.current.has("invoices")) {
+      incomingDomains.current.delete("invoices");
       return;
     }
     setDataVersion((v) => v + 1);
@@ -376,9 +382,8 @@ export default function App() {
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
-    if (isIncomingRemoteUpdate.current) {
-      // Último useEffect reseta a flag para as próximas interações do usuário
-      isIncomingRemoteUpdate.current = false;
+    if (incomingDomains.current.has("plannedInstallments")) {
+      incomingDomains.current.delete("plannedInstallments");
       return;
     }
     setDataVersion((v) => v + 1);
@@ -392,55 +397,35 @@ export default function App() {
     plannedInstallments,
   }), [fixedBills, incomes, invoices, plannedInstallments]);
 
-  // ─── Callback: ao ativar o sync, faz push inicial dos dados locais ──────────
+  // ─── Callback: ao ativar o sync, faz push inicial de todos os domínios ───────
   const handleSyncActivated = useCallback(async (_code: string) => {
-    await pushToServer(currentAppData);
+    await pushDomainsToServer(currentAppData);
   }, [currentAppData]);
 
-  // ─── Callback: ao receber dados do servidor, aplica no estado do app ─────────
-  const handleRemoteData = useCallback((data: any) => {
-    // Só atualiza os estados se os dados forem realmente diferentes
-    let changed = false;
-
-    setFixedBills((prev) => {
-      const isDiff = JSON.stringify(prev) !== JSON.stringify(data.fixedBills);
-      if (isDiff && data.fixedBills) {
-        changed = true;
-        return data.fixedBills;
-      }
-      return prev;
-    });
-
-    setIncomes((prev) => {
-      const isDiff = JSON.stringify(prev) !== JSON.stringify(data.incomes);
-      if (isDiff && data.incomes) {
-        changed = true;
-        return data.incomes;
-      }
-      return prev;
-    });
-
-    setInvoices((prev) => {
-      const isDiff = JSON.stringify(prev) !== JSON.stringify(data.invoices);
-      if (isDiff && data.invoices) {
-        changed = true;
-        return data.invoices;
-      }
-      return prev;
-    });
-
-    setPlannedInstallments((prev) => {
-      const isDiff = JSON.stringify(prev) !== JSON.stringify(data.plannedInstallments);
-      if (isDiff && data.plannedInstallments) {
-        changed = true;
-        return data.plannedInstallments;
-      }
-      return prev;
-    });
-
-    if (changed) {
-      // Sinaliza para os useEffects locais que essa mudança veio de fora e não deve gerar push
-      isIncomingRemoteUpdate.current = true;
+  // ─── Callback: ao receber dados do servidor, aplica apenas os domínios alterados ──
+  //
+  // Recebe `MergedDomains` — um objeto ESPARSO contendo somente os domínios que o
+  // servidor tem mais recentes que o local (após resolução de conflito por timestamp).
+  // Portanto não é necessário comparar JSON: se veio aqui, é mais novo.
+  //
+  // Antes de atualizar cada estado, registramos o domínio em `incomingDomains` para
+  // que o useEffect de persistência saiba que não deve fazer push de volta (anti-loop).
+  const handleRemoteData = useCallback((merged: MergedDomains) => {
+    if (merged.fixedBills) {
+      incomingDomains.current.add("fixedBills");
+      setFixedBills(merged.fixedBills);
+    }
+    if (merged.incomes) {
+      incomingDomains.current.add("incomes");
+      setIncomes(merged.incomes);
+    }
+    if (merged.invoices) {
+      incomingDomains.current.add("invoices");
+      setInvoices(merged.invoices);
+    }
+    if (merged.plannedInstallments) {
+      incomingDomains.current.add("plannedInstallments");
+      setPlannedInstallments(merged.plannedInstallments);
     }
   }, []);
 

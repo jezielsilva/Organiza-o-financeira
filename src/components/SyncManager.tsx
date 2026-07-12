@@ -23,14 +23,17 @@ import {
   clearSyncCode,
   gerarCodigoAleatorio,
   pushToServer,
+  pushDomainsToServer,
   subscribeToRemoteChanges,
   isFirebaseConfigured,
   SyncStatus,
+  MergedDomains,
 } from "../services/syncService";
 
 interface SyncManagerProps {
   onSyncActivated: (code: string) => Promise<void>;
-  onRemoteDataReceived: (data: object) => void;
+  /** Recebe apenas os domínios que foram atualizados remotamente (payload esparso). */
+  onRemoteDataReceived: (merged: MergedDomains) => void;
   currentAppData: object;
   dataVersion: number;
 }
@@ -94,13 +97,15 @@ export default function SyncManager({
   }, [syncCode, configured, onRemoteDataReceived]);
 
   // ─── Auto-push quando os dados do app mudam ────────────────────────────────
+  // Usa pushDomainsToServer para enviar todos os domínios com timestamps individuais.
+  // O syncService.ts garante que o próprio listener ignore este push via deviceId.
   const prevVersionRef = useRef(dataVersion);
   useEffect(() => {
     if (!syncCode || !configured) return;
     if (prevVersionRef.current === dataVersion) return;
     prevVersionRef.current = dataVersion;
     setStatus("syncing");
-    pushToServer(currentAppData).then((ok) => {
+    pushDomainsToServer(currentAppData as any).then((ok) => {
       setStatus(ok ? "synced" : "error");
     });
   }, [dataVersion, syncCode, currentAppData, configured]);
@@ -222,15 +227,28 @@ export default function SyncManager({
       {/* Painel Expandido */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -8 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-80 bg-white border border-zinc-200 rounded-2xl shadow-xl z-50 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
+          <>
+            {/* Backdrop para fechar e isolar o Stacking Context no iOS */}
+            <div
+              className="fixed inset-0 bg-zinc-950/40 backdrop-blur-xs z-40 sm:hidden"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-x-4 top-24 mx-auto w-auto max-w-sm z-50 bg-white border border-zinc-200 rounded-2xl shadow-xl overflow-hidden sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:mx-0 ios-sync-modal"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
             {/* Header do Painel */}
             <div className="px-4 pt-4 pb-3 border-b border-zinc-100">
               <h3 className="font-black text-zinc-800 text-sm flex items-center gap-2">
@@ -360,6 +378,7 @@ export default function SyncManager({
               ) : null}
             </div>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

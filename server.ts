@@ -47,7 +47,7 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // API - Processamento de Faturas com IA (Gemini)
+  // API - Processamento de Faturas via Microserviço Local (Python/pdfplumber)
   app.post("/api/parse-invoice", async (req, res) => {
     try {
       const { fileBase64, mimeType, fileName } = req.body;
@@ -60,150 +60,92 @@ async function startServer() {
         return;
       }
 
-      // Inicializa e valida a chave do Gemini
-      const ai = getGeminiClient();
-
-      const promptText = `Você é um extrator de dados de faturas de cartão de crédito brasileiras.
-Analise o arquivo anexado (que é uma imagem ou PDF de fatura de cartão de crédito) e extraia de forma precisa e completa as informações solicitadas.
-
-Instruções críticas:
-1. Identifique compras parceladas procurando por padrões de parcelas como "01/10", "3/12", "04/05", "1 de 6", etc. no nome ou descrição da transação.
-2. Para transações parceladas:
-   - 'isInstallment' DEVE ser true.
-   - 'installmentCurrent' é o número atual da parcela sendo paga (ex: em '07/10' é 7, em '1 de 6' é 1).
-   - 'installmentTotal' é o número total de parcelas contratadas (ex: em '07/10' é 10, em '1 de 6' é 6).
-   - 'installmentValue' é o valor exato cobrado por ESSA parcela nesta fatura.
-   - 'totalValue' deve ser o valor total final da compra original (se não souber, calcule multiplicando 'installmentValue' por 'installmentTotal').
-3. Para transações normais (à vista):
-   - 'isInstallment' DEVE ser false.
-   - 'installmentCurrent', 'installmentTotal' e 'installmentValue' devem ser null.
-   - 'totalValue' é o valor total da transação.
-4. Identifique o mês de referência da fatura ('referenceMonth') no formato 'AAAA-MM' (ex: '2026-07'). Se não conseguir deduzir o ano na fatura, use 2026.
-5. Estime a data de cada compra ('purchaseDate') no formato 'AAAA-MM-DD'. Se a fatura mostrar apenas dia e mês (ex: '15/05' ou '15 Mai'), complete usando o ano de referência deduzido da fatura.
-6. IGNORE linhas referentes a pagamentos de faturas anteriores ("PAGTO RECEBIDO", "PAGAMENTO EFETUADO", "DEB.AUTOMATICO", etc.), saldos anteriores, créditos de juros/estornos de pagamentos, ou linhas de resumo de faturas. Foque em gastos reais, taxas, anuidades e compras realizadas.
-7. Se houver alguma compra que você não conseguiu ter certeza de todos os campos ou que parece incompleta, preencha-a da melhor forma possível. Se 'installmentCurrent' ou 'installmentTotal' forem ilegíveis mas o item é parcelado, preencha-os como null para que o usuário possa revisar.`;
-
-      // Define o esquema de resposta JSON estrito para garantir que o Gemini retorne exatamente o modelo desejado
-      const invoiceResponseSchema = {
-        type: Type.OBJECT,
-        properties: {
-          referenceMonth: {
-            type: Type.STRING,
-            description: "O mês de referência da fatura no formato 'AAAA-MM' (ex: '2026-07')."
-          },
-          totalValue: {
-            type: Type.NUMBER,
-            description: "O valor total desta fatura específica somando todas as despesas lançadas nela."
-          },
-          purchases: {
-            type: Type.ARRAY,
-            description: "Lista de compras e gastos extraídos da fatura.",
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                description: {
-                  type: Type.STRING,
-                  description: "A descrição completa da compra como aparece na linha da fatura (ex: 'MERCADO LIVRE', 'UBER *TRIP')."
-                },
-                purchaseDate: {
-                  type: Type.STRING,
-                  description: "Data da compra no formato 'AAAA-MM-DD' ou null se não identificável."
-                },
-                totalValue: {
-                  type: Type.NUMBER,
-                  description: "O valor total cheio da compra. Se for parcelada, é o valor integral (parcela * total de parcelas). Se à vista, é o valor cobrado."
-                },
-                isInstallment: {
-                  type: Type.BOOLEAN,
-                  description: "true se for uma compra parcelada, false caso contrário."
-                },
-                installmentCurrent: {
-                  type: Type.INTEGER,
-                  description: "O número da parcela atual (ex: 5 em '05/12'). null se for compra à vista."
-                },
-                installmentTotal: {
-                  type: Type.INTEGER,
-                  description: "O número total de parcelas (ex: 12 em '05/12'). null se for compra à vista."
-                },
-                installmentValue: {
-                  type: Type.NUMBER,
-                  description: "O valor desta parcela específica cobrada nesta fatura. null se for compra à vista."
-                }
-              },
-              required: ["description", "totalValue", "isInstallment"]
-            }
-          }
-        },
-        required: ["referenceMonth", "totalValue", "purchases"]
-      };
-
-      const mediaPart = {
-        inlineData: {
-          mimeType,
-          data: fileBase64,
-        },
-      };
-
-      const textPart = {
-        text: promptText,
-      };
-
-      // Chamada oficial à API Gemini usando o SDK recomendado
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: { parts: [mediaPart, textPart] },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: invoiceResponseSchema,
-        },
-      });
-
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("O modelo Gemini não retornou nenhum texto.");
+      // 1. Cria um arquivo temporário no workspace para o script Python ler
+      const tempDir = path.join(process.cwd(), "temp_uploads");
+      if (!existsSync(tempDir)) {
+        await fs.mkdir(tempDir, { recursive: true });
       }
 
-      const parsedData = JSON.parse(responseText.trim());
+      const fileExt = mimeType === "application/pdf" ? ".pdf" : ".png";
+      const tempFilePath = path.join(tempDir, `invoice_${Date.now()}${fileExt}`);
+      
+      // Salva o buffer base64 para o disco
+      const buffer = Buffer.from(fileBase64, "base64");
+      await fs.writeFile(tempFilePath, buffer);
 
-      // Mapeia compras para garantir IDs e preenchimento adequado
-      const purchasesWithIds = (parsedData.purchases || []).map((p: any, idx: number) => {
-        const isInstallment = !!p.isInstallment;
-        const current = p.installmentCurrent ? Number(p.installmentCurrent) : undefined;
-        const total = p.installmentTotal ? Number(p.installmentTotal) : undefined;
-        const val = p.installmentValue ? Number(p.installmentValue) : (isInstallment && total ? p.totalValue / total : p.totalValue);
+      // 2. Executa o script Python parser.py localmente
+      const { exec } = require("child_process");
+      const scriptPath = path.join(process.cwd(), "microservices", "invoice_parser", "parser.py");
+      
+      const runPython = (cmd: string): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          exec(cmd, (error: any, stdout: string, stderr: string) => {
+            if (error) {
+              reject(new Error(stderr || error.message));
+            } else {
+              resolve(stdout);
+            }
+          });
+        });
+      };
 
-        // Calcula as parcelas restantes contando a partir do mês da fatura (inclusive a atual)
-        let remaining: number | undefined = undefined;
-        if (isInstallment && total && current) {
-          remaining = total - current;
+      let pythonOutput = "";
+      try {
+        pythonOutput = await runPython(`python "${scriptPath}" "${tempFilePath}"`);
+      } finally {
+        // Garante a remoção do arquivo temporário mesmo em caso de falha
+        try {
+          await fs.unlink(tempFilePath);
+        } catch (_) {}
+      }
+
+      // 3. Estrutura a resposta
+      const parsedData = JSON.parse(pythonOutput);
+
+      if (parsedData.error) {
+        throw new Error(parsedData.error);
+      }
+
+      // Achata a lista de compras agrupadas por portador para a estrutura esperada pelo frontend
+      const flatPurchases: any[] = [];
+      let purchaseIndex = 0;
+
+      if (parsedData.lancamentos_por_portador) {
+        for (const [portador, compras] of Object.entries(parsedData.lancamentos_por_portador)) {
+          const list = compras as any[];
+          for (const item of list) {
+            const isInstallment = !!item.is_installment;
+            const current = item.installment_current ? Number(item.installment_current) : undefined;
+            const total = item.installment_total ? Number(item.installment_total) : undefined;
+            const val = item.value ? Number(item.value) : 0;
+            const totalVal = isInstallment && total ? val * total : val;
+
+            flatPurchases.push({
+              id: `pur-${Date.now()}-${purchaseIndex++}-${Math.random().toString(36).substr(2, 4)}`,
+              description: item.description || item.descricao || "Compra Sem Nome",
+              category: "Geral",
+              purchaseDate: item.date ? `2026-${item.date.split("/")[1]}-${item.date.split("/")[0]}` : undefined, // ex: 10/04 -> 2026-04-10
+              totalValue: Number(totalVal),
+              isInstallment,
+              installmentCurrent: current,
+              installmentTotal: total,
+              installmentValue: isInstallment ? Number(val) : undefined,
+              installmentsRemaining: isInstallment && total && current ? total - current : undefined,
+              portador: portador !== "OUTROS" ? portador : undefined, // Repassa metadado do portador se disponível
+            });
+          }
         }
+      }
 
-        return {
-          id: `pur-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-          description: p.description || "Compra Sem Nome",
-          category: p.category || "Geral",
-          purchaseDate: p.purchaseDate || undefined,
-          totalValue: Number(p.totalValue || 0),
-          isInstallment,
-          installmentCurrent: current,
-          installmentTotal: total,
-          installmentValue: val ? Number(val) : undefined,
-          installmentsRemaining: remaining,
-        };
-      });
-
-      // Se alguma compra parcelada veio com dados de parcelas vazios mas está marcada como parcelada, precisa de revisão
-      const needsReview = purchasesWithIds.some(
-        (p: any) => p.isInstallment && (!p.installmentCurrent || !p.installmentTotal || !p.installmentValue)
-      ) || purchasesWithIds.length === 0;
+      const needsReview = flatPurchases.length === 0;
 
       const cardInvoice = {
         id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        referenceMonth: parsedData.referenceMonth || new Date().toISOString().substring(0, 7),
+        referenceMonth: new Date().toISOString().substring(0, 7), // Default mês atual
         uploadedAt: new Date().toISOString(),
         fileName: fileName || "fatura.pdf",
-        totalValue: Number(parsedData.totalValue || 0),
-        purchases: purchasesWithIds,
+        totalValue: Number(parsedData.valor_total || 0),
+        purchases: flatPurchases,
         parsedAt: new Date().toISOString(),
         needsReview,
       };
@@ -214,10 +156,10 @@ Instruções críticas:
       });
 
     } catch (error: any) {
-      console.error("Erro no processamento da fatura:", error);
+      console.error("Erro no processamento local da fatura:", error);
       res.status(500).json({
         success: false,
-        error: error?.message || "Erro desconhecido ao processar fatura.",
+        error: error?.message || "Erro desconhecido ao processar fatura localmente.",
       });
     }
   });
