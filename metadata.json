@@ -1,6 +1,5 @@
 {
   "name": "Controle Financeiro Pessoal",
-  "description": "Aplicativo pessoal para controle de renda, contas fixas e faturas de cartão lidas por IA com projeção de parcelas futuras.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "description": "Aplicativo pessoal para controle de renda, contas fixas e faturas de cartão com projeção de parcelas futuras.",
+  "requestFramePermissions": []
 }

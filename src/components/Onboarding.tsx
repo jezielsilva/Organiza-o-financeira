@@ -17,7 +17,7 @@ import {
   Coins,
   LayoutDashboard,
   AlertCircle,
-  Sparkles,
+  FileText,
 } from "lucide-react";
 
 // --- Tipos internos do formulário ---
@@ -256,8 +256,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             <div className="grid grid-cols-3 gap-3 mt-2">
               {[
                 { icon: Wallet, label: "Rendas & Gastos" },
-                { icon: LayoutDashboard, label: "Dashboard Inteligente" },
-                { icon: Sparkles, label: "Análise por IA" },
+                { icon: LayoutDashboard, label: "Dashboard Completo" },
+                { icon: FileText, label: "Leitor de Faturas" },
               ].map(({ icon: Icon, label }) => (
                 <div
                   key={label}

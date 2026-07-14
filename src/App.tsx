@@ -895,7 +895,7 @@ export default function App() {
 
       {/* FOOTER */}
       <footer className="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400 select-none pb-20 md:pb-4">
-        <p>© 2026 Controle Financeiro Pessoal • Processamento Inteligente de Faturas por IA</p>
+        <p>© 2026 Controle Financeiro Pessoal • Processamento de Faturas em Python</p>
       </footer>
     </div>
   );

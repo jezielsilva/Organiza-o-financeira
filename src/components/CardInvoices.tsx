@@ -1,14 +1,8 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useRef } from "react";
 import { CardInvoice, CardPurchase } from "../types";
 import { formatCurrency, formatMonth, parseInvoiceLine, getPurchaseFullDate, extractTotalValueFromText } from "../utils";
-import { Upload, FileText, CheckCircle, AlertTriangle, Edit3, Trash2, Plus, Calendar, Settings, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertTriangle, Edit3, Trash2, Plus, Calendar, Settings, Loader2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import * as pdfjsLib from "pdfjs-dist";
 
 interface CardInvoicesProps {
   selectedMonth: string;
@@ -42,146 +36,22 @@ export default function CardInvoices({
 
   const activeInvoice = invoices.find((inv) => inv.referenceMonth === selectedMonth);
 
-  // Helper para extrair texto de PDF localmente usando pdfjs-dist
-  const readPdfTextLocal = async (file: File): Promise<string> => {
-    // Configura o local do worker na CDN do cdnjs matching a versão importada do pdfjsLib
-    const version = pdfjsLib.version || "4.10.38";
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.mjs`;
-
-    const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-    let fullText = "";
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(" ");
-      fullText += pageText + "\n";
-    }
-    return fullText;
-  };
-
   // --- Função para Upload do Arquivo ---
   const handleFile = async (file: File) => {
     if (!file) return;
 
-    // Valida o tipo de arquivo
-    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+    // Valida o tipo de arquivo (Apenas PDF é suportado pelo extrator em Python)
+    const allowedTypes = ["application/pdf"];
     if (!allowedTypes.includes(file.type)) {
-      setError("Tipo de arquivo inválido. Por favor, envie uma fatura em formato PDF ou Imagem (PNG/JPG).");
+      setError("Tipo de arquivo inválido. Por favor, envie uma fatura em formato PDF.");
       return;
     }
 
     setLoading(true);
     setError(null);
-    setLoadingStep("Lendo arquivo da fatura...");
+    setLoadingStep("Enviando arquivo para o extrator local em Python...");
 
     try {
-      // 1. TENTATIVA DE PARSING LOCAL DO CARREFOUR PDF
-      if (file.type === "application/pdf") {
-        setLoadingStep("Processando PDF localmente (Sem IA / Offline)...");
-        try {
-          const pdfText = await readPdfTextLocal(file);
-          
-          // Quebramos em linhas para analisar individualmente
-          const lines = pdfText.split("\n");
-          const parsedPurchases: CardPurchase[] = [];
-          let totalPurchasesSum = 0;
-
-          // Se o pdf de alguma forma uniu o texto em linhas longas, vamos tentar quebrar também por espaços duplos
-          const normalizedLines: string[] = [];
-          for (const l of lines) {
-            // Se a linha for muito grande, talvez tenha múltiplos lançamentos agrupados por tabulação do PDF.js
-            // Vamos separar por quebras normais ou padrões comuns de data
-            if (l.length > 120 && /\d{2}\/\d{2}/.test(l)) {
-              // Divide a linha antes de cada padrão "DD/MM" para recuperar as linhas individuais
-              const parts = l.split(/(?=\b\d{2}\/\d{2}\b)/);
-              normalizedLines.push(...parts);
-            } else {
-              normalizedLines.push(l);
-            }
-          }
-
-          for (let i = 0; i < normalizedLines.length; i++) {
-            const parsed = parseInvoiceLine(normalizedLines[i]);
-            if (parsed) {
-              // Descartamos se isCredit === true (pagamentos/estornos de faturas anteriores - Regra 5.2/5.3)
-              if (parsed.isCredit) {
-                continue;
-              }
-
-              const fullDate = getPurchaseFullDate(parsed.date, selectedMonth);
-
-              parsedPurchases.push({
-                id: `pur-loc-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
-                description: parsed.description,
-                category: parsed.description.toUpperCase().includes("ANUIDADE") ? "Tarifas" : "Geral",
-                purchaseDate: fullDate,
-                totalValue: parsed.totalValue,
-                isInstallment: parsed.isInstallment,
-                installmentCurrent: parsed.installmentCurrent,
-                installmentTotal: parsed.installmentTotal,
-                installmentValue: parsed.installmentValue,
-                installmentsRemaining: parsed.isInstallment && parsed.installmentTotal && parsed.installmentCurrent
-                  ? parsed.installmentTotal - parsed.installmentCurrent
-                  : undefined
-              });
-
-              // Soma o valor correspondente a esta fatura (se parcelado, o valor da parcela; se à vista, o valor cheio)
-              totalPurchasesSum += parsed.isInstallment && parsed.installmentValue 
-                ? parsed.installmentValue 
-                : parsed.totalValue;
-            }
-          }
-
-          if (parsedPurchases.length > 0) {
-            // Tenta obter o total da fatura atual do topo do PDF
-            const extractedTotal = extractTotalValueFromText(pdfText);
-            const finalTotal = extractedTotal !== null ? extractedTotal : totalPurchasesSum;
-
-            // Regra 5.4: needsReview se o total não bater com a soma (margem de 1 real de tolerância)
-            let needsReview = false;
-            if (extractedTotal !== null) {
-              needsReview = Math.abs(totalPurchasesSum - extractedTotal) > 1.0;
-            } else {
-              needsReview = true; // Necessita de revisão se não achou o total do cabeçalho
-            }
-
-            const cardInvoice: CardInvoice = {
-              id: `inv-loc-${Date.now()}`,
-              referenceMonth: selectedMonth,
-              uploadedAt: new Date().toISOString(),
-              fileName: file.name,
-              totalValue: finalTotal,
-              purchases: parsedPurchases,
-              parsedAt: new Date().toISOString(),
-              needsReview,
-            };
-
-            // Regra de Negócio 4.1: Substitui completamente faturas do mesmo mês
-            setInvoices((prev) => {
-              const filtered = prev.filter((inv) => inv.referenceMonth !== selectedMonth);
-              return [...filtered, cardInvoice];
-            });
-
-            setLoadingStep("Concluído!");
-            setTimeout(() => {
-              setLoading(false);
-            }, 500);
-            return; // Retorna com sucesso usando o parser offline local!
-          } else {
-            console.log("Nenhum lançamento padrão Carrefour encontrado no PDF local. Seguindo para o Gemini...");
-          }
-        } catch (localError) {
-          console.error("Erro ao rodar extrator local, tentando via Gemini...", localError);
-        }
-      }
-
-      // 2. FALLBACK PARA EXTRAÇÃO VIA GEMINI (Se for Imagem ou PDF de outro formato/banco)
-      setLoadingStep("Conectando com o Gemini para analisar a fatura...");
       const base64Data = await convertFileToBase64(file);
 
       const response = await fetch("/api/parse-invoice", {
@@ -199,7 +69,7 @@ export default function CardInvoices({
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Ocorreu um erro ao processar a fatura via IA.");
+        throw new Error(data.error || "Ocorreu um erro ao processar a fatura via serviço local.");
       }
 
       setLoadingStep("Processando e estruturando dados recebidos...");
@@ -391,14 +261,14 @@ export default function CardInvoices({
         </div>
       )}
 
-      {/* Loader de Upload com Gemini */}
+      {/* Loader de Upload com Python */}
       {loading && (
         <div className="bg-zinc-900 text-white rounded-3xl p-10 flex flex-col items-center justify-center text-center space-y-4 shadow-2xl border border-zinc-800">
           <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
           <div className="space-y-1">
             <h4 className="font-black text-base flex items-center justify-center gap-2 tracking-tight">
-              <Sparkles className="w-5 h-5 text-emerald-300 animate-pulse" />
-              Processando Fatura com IA
+              <FileText className="w-5 h-5 text-emerald-300 animate-pulse" />
+              Processando Fatura
             </h4>
             <p className="text-xs text-zinc-400 max-w-sm leading-relaxed">{loadingStep}</p>
           </div>
@@ -428,14 +298,14 @@ export default function CardInvoices({
 
           <h3 className="text-lg font-black text-zinc-900 tracking-tight">Importar Fatura de {formatMonth(selectedMonth)}</h3>
           <p className="text-xs text-zinc-500 mt-2 max-w-md leading-relaxed">
-            Faça upload do arquivo PDF ou imagem da fatura do cartão de crédito. A inteligência artificial do Gemini extrairá todas as transações automaticamente de forma nativa.
+            Faça upload do arquivo PDF da fatura do cartão de crédito. O leitor local em Python extrairá todas as transações de forma offline e segura.
           </p>
 
           <input
             type="file"
             ref={fileInputRef}
             onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-            accept=".pdf, image/*"
+            accept=".pdf"
             className="hidden"
           />
 
@@ -446,11 +316,6 @@ export default function CardInvoices({
             >
               Escolher Arquivo
             </button>
-          </div>
-
-          <div className="text-[10px] text-zinc-400 mt-4 flex items-center gap-1.5 font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-            Suporta PDF, PNG, JPG (leitura por IA)
           </div>
         </div>
       )}
@@ -498,7 +363,7 @@ export default function CardInvoices({
                   type="file"
                   ref={fileInputRef}
                   onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-                  accept=".pdf, image/*"
+                  accept=".pdf"
                   className="hidden"
                 />
                 <button

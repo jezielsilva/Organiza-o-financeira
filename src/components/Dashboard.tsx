@@ -163,13 +163,13 @@ export default function Dashboard({
                 <div className="space-y-3">
                   <div className="flex items-center gap-1.5 text-emerald-400">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span className="text-[10px] uppercase font-black tracking-wider">Leitura IA: Confiável</span>
+                    <span className="text-[10px] uppercase font-black tracking-wider">Leitura: Confiável</span>
                   </div>
                   <div className="text-3xl font-black text-white tracking-tight">
                     {formatCurrency(activeInvoice.totalValue)}
                   </div>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    {activeInvoice.purchases.length} compras extraídas com precisão pelo Gemini.
+                    {activeInvoice.purchases.length} compras extraídas com precisão pelo leitor em Python.
                   </p>
                   {activeInvoice.needsReview && (
                     <div className="flex items-center gap-1.5 mt-2 p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400 text-xs">
@@ -213,7 +213,7 @@ export default function Dashboard({
         </div>
       </motion.div>
 
-      {/* Reconciliação Inteligente */}
+      {/* Reconciliação Automática */}
       {reconciliationSuggestions.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -225,10 +225,10 @@ export default function Dashboard({
             <ShieldAlert className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
             <div className="space-y-1 w-full">
               <h4 className="font-bold text-indigo-950 text-sm">
-                Conciliação Inteligente de Parcelas
+                Conciliação Automática de Parcelas
               </h4>
               <p className="text-xs text-indigo-900 leading-relaxed">
-                A IA identificou compras na fatura que coincidem com simulações manuais ativas. Confirme se deseja unificá-las para evitar duplicidade no orçamento:
+                O sistema identificou compras na fatura que coincidem com simulações manuais ativas. Confirme se deseja unificá-las para evitar duplicidade no orçamento:
               </p>
 
               <div className="mt-3 space-y-3">
