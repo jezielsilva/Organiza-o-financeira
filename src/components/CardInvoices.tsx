@@ -3,6 +3,7 @@ import { CardInvoice, CardPurchase } from "../types";
 import { formatCurrency, formatMonth, parseInvoiceLine, getPurchaseFullDate, extractTotalValueFromText } from "../utils";
 import { Upload, FileText, CheckCircle, AlertTriangle, Edit3, Trash2, Plus, Calendar, Settings, Loader2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { parseInvoiceClientSide } from "../invoiceParserClient";
 
 interface CardInvoicesProps {
   selectedMonth: string;
@@ -40,7 +41,7 @@ export default function CardInvoices({
   const handleFile = async (file: File) => {
     if (!file) return;
 
-    // Valida o tipo de arquivo (Apenas PDF é suportado pelo extrator em Python)
+    // Valida o tipo de arquivo (Apenas PDF é suportado pelo parser client-side)
     const allowedTypes = ["application/pdf"];
     if (!allowedTypes.includes(file.type)) {
       setError("Tipo de arquivo inválido. Por favor, envie uma fatura em formato PDF.");
@@ -49,34 +50,12 @@ export default function CardInvoices({
 
     setLoading(true);
     setError(null);
-    setLoadingStep("Enviando arquivo para o extrator local em Python...");
+    setLoadingStep("Extraindo texto do PDF no navegador...");
 
     try {
-      const base64Data = await convertFileToBase64(file);
+      setLoadingStep("Processando lançamentos da fatura...");
 
-      const response = await fetch("/api/parse-invoice", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileBase64: base64Data,
-          mimeType: file.type,
-          fileName: file.name,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Ocorreu um erro ao processar a fatura via serviço local.");
-      }
-
-      setLoadingStep("Processando e estruturando dados recebidos...");
-
-      const parsedInvoice: CardInvoice = data.invoice;
-      // Sobrescreve o mês de referência para o mês atual que o usuário está visualizando para garantir consistência
-      parsedInvoice.referenceMonth = selectedMonth;
+      const parsedInvoice = await parseInvoiceClientSide(file, selectedMonth);
 
       // Regra de Negócio 4.1: Substituir completamente faturas com o mesmo referenceMonth
       setInvoices((prev) => {
@@ -94,19 +73,6 @@ export default function CardInvoices({
       setError(err?.message || "Erro inesperado ao processar arquivo.");
       setLoading(false);
     }
-  };
-
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = (err) => reject(err);
-    });
   };
 
   // Drag and Drop Handlers
