@@ -50,15 +50,69 @@ export function safeGetItem<T>(key: string, defaultValue: T): T {
   }
 }
 
+// Helper para mesclar dados locais atuais (incluindo control-fields e tombstones) com novos dados ativos da UI
+function mergeLocalWithNew(existingRaw: any[], newActive: any[]): any[] {
+  const now = Date.now();
+  const existingMap = new Map<string, any>();
+  for (const item of existingRaw) {
+    existingMap.set(item.id, item);
+  }
+
+  const result: any[] = [];
+  const incomingIds = new Set<string>();
+
+  for (const item of newActive) {
+    incomingIds.add(item.id);
+    const prev = existingMap.get(item.id);
+    if (prev) {
+      // Verifica se houve alguma alteração real nos dados de negócio (desconsiderando campos de controle)
+      const { updatedAt: _, deleted: __, ...prevClean } = prev;
+      const { updatedAt: ___, deleted: ____, ...itemClean } = item;
+      const hasChanged = JSON.stringify(prevClean) !== JSON.stringify(itemClean);
+
+      result.push({
+        ...item,
+        deleted: false,
+        updatedAt: hasChanged ? now : (prev.updatedAt || now)
+      });
+    } else {
+      result.push({
+        ...item,
+        deleted: false,
+        updatedAt: now
+      });
+    }
+  }
+
+  // Mantém ou gera os "tombstones" (registros deletados logicamente) para itens removidos da nova lista
+  for (const item of existingRaw) {
+    if (!incomingIds.has(item.id)) {
+      if (item.deleted) {
+        result.push(item);
+      } else {
+        result.push({
+          ...item,
+          deleted: true,
+          updatedAt: now
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
 // ==========================================
 // CRUD: Contas Fixas (Fixed Bills)
 // ==========================================
 export const fixedBillsStorage = {
   getAll: (initial: FixedBill[] = []): FixedBill[] => {
-    return safeGetItem<FixedBill[]>(KEYS.FIXED_BILLS, initial);
+    return safeGetItem<FixedBill[]>(KEYS.FIXED_BILLS, initial).filter((b: any) => !b.deleted);
   },
   saveAll: (bills: FixedBill[]): void => {
-    safeSetItem(KEYS.FIXED_BILLS, bills);
+    const existing = safeGetItem<FixedBill[]>(KEYS.FIXED_BILLS, []);
+    const merged = mergeLocalWithNew(existing, bills);
+    safeSetItem(KEYS.FIXED_BILLS, merged);
   },
 };
 
@@ -67,10 +121,12 @@ export const fixedBillsStorage = {
 // ==========================================
 export const incomesStorage = {
   getAll: (initial: IncomeSource[] = []): IncomeSource[] => {
-    return safeGetItem<IncomeSource[]>(KEYS.INCOMES, initial);
+    return safeGetItem<IncomeSource[]>(KEYS.INCOMES, initial).filter((i: any) => !i.deleted);
   },
   saveAll: (incomes: IncomeSource[]): void => {
-    safeSetItem(KEYS.INCOMES, incomes);
+    const existing = safeGetItem<IncomeSource[]>(KEYS.INCOMES, []);
+    const merged = mergeLocalWithNew(existing, incomes);
+    safeSetItem(KEYS.INCOMES, merged);
   },
 };
 
@@ -79,10 +135,12 @@ export const incomesStorage = {
 // ==========================================
 export const invoicesStorage = {
   getAll: (initial: CardInvoice[] = []): CardInvoice[] => {
-    return safeGetItem<CardInvoice[]>(KEYS.INVOICES, initial);
+    return safeGetItem<CardInvoice[]>(KEYS.INVOICES, initial).filter((inv: any) => !inv.deleted);
   },
   saveAll: (invoices: CardInvoice[]): void => {
-    safeSetItem(KEYS.INVOICES, invoices);
+    const existing = safeGetItem<CardInvoice[]>(KEYS.INVOICES, []);
+    const merged = mergeLocalWithNew(existing, invoices);
+    safeSetItem(KEYS.INVOICES, merged);
   },
 };
 
@@ -91,10 +149,12 @@ export const invoicesStorage = {
 // ==========================================
 export const plannedInstallmentsStorage = {
   getAll: (initial: PlannedInstallment[] = []): PlannedInstallment[] => {
-    return safeGetItem<PlannedInstallment[]>(KEYS.PLANNED, initial);
+    return safeGetItem<PlannedInstallment[]>(KEYS.PLANNED, initial).filter((p: any) => !p.deleted);
   },
   saveAll: (planned: PlannedInstallment[]): void => {
-    safeSetItem(KEYS.PLANNED, planned);
+    const existing = safeGetItem<PlannedInstallment[]>(KEYS.PLANNED, []);
+    const merged = mergeLocalWithNew(existing, planned);
+    safeSetItem(KEYS.PLANNED, merged);
   },
 };
 
@@ -170,7 +230,10 @@ export const transacoesFixasStorage = {
    * Salva rendas e contas fixas como domínio único.
    */
   save: (rendas: IncomeSource[], contasFixas: FixedBill[]): void => {
-    safeSetItem(SCHEMA_KEYS.TRANSACOES_FIXAS, { rendas, contasFixas });
+    const existing = safeGetItem<{ rendas: IncomeSource[]; contasFixas: FixedBill[] }>(SCHEMA_KEYS.TRANSACOES_FIXAS, { rendas: [], contasFixas: [] });
+    const mergedRendas = mergeLocalWithNew(existing.rendas, rendas);
+    const mergedContas = mergeLocalWithNew(existing.contasFixas, contasFixas);
+    safeSetItem(SCHEMA_KEYS.TRANSACOES_FIXAS, { rendas: mergedRendas, contasFixas: mergedContas });
   },
 
   /**
@@ -178,10 +241,14 @@ export const transacoesFixasStorage = {
    * Retorna arrays vazios se não houver dados salvos.
    */
   load: (): { rendas: IncomeSource[]; contasFixas: FixedBill[] } => {
-    return safeGetItem(SCHEMA_KEYS.TRANSACOES_FIXAS, {
+    const data = safeGetItem<{ rendas: IncomeSource[]; contasFixas: FixedBill[] }>(SCHEMA_KEYS.TRANSACOES_FIXAS, {
       rendas: [],
       contasFixas: [],
     });
+    return {
+      rendas: data.rendas.filter((r: any) => !r.deleted),
+      contasFixas: data.contasFixas.filter((c: any) => !c.deleted),
+    };
   },
 };
 

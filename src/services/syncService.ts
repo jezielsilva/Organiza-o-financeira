@@ -1,40 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * syncService — Sincronização Bidirecional em Tempo Real via Firebase Realtime Database
- *
- * Arquitetura:
- *  - Real-time Listeners via `onValue` do Firebase SDK (WebSocket sob o capô).
- *  - Política de resolução de conflitos: "Last Write Wins" por DOMÍNIO de dados.
- *    → Campos diferentes (ex: fixedBills vs invoices) são mesclados independentemente.
- *    → Um campo só é sobrescrito se o timestamp remoto for MAIOR que o local.
- *  - Anti-loop: cada cliente possui um `deviceId` persistido em sessionStorage.
- *    O payload enviado inclui `_writtenBy: deviceId`. O listener ignora eventos
- *    cujo `_writtenBy` seja o próprio `deviceId`.
- *
- * Estrutura no Firebase:
- *  sync_rooms/<code>/
- *    meta:
- *      _writtenBy: string       ← deviceId de quem fez o último push
- *      _updatedAt:  number      ← timestamp Unix ms do push
- *    domains:
- *      fixedBills:
- *        _updatedAt: number
- *        data: FixedBill[]
- *      incomes:
- *        _updatedAt: number
- *        data: IncomeSource[]
- *      invoices:
- *        _updatedAt: number
- *        data: CardInvoice[]
- *      plannedInstallments:
- *        _updatedAt: number
- *        data: PlannedInstallment[]
- */
-
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import {
   getDatabase,
@@ -46,6 +9,7 @@ import {
   Database,
   DataSnapshot,
 } from "firebase/database";
+import { safeGetItem, safeSetItem } from "./storageService";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Configuração do Firebase
@@ -127,19 +91,11 @@ export function gerarCodigoAleatorio(): string {
 // ──────────────────────────────────────────────────────────────────────────────
 export type SyncStatus = "idle" | "syncing" | "synced" | "error" | "no_code" | "not_configured";
 
-/**
- * Envelope de um domínio sincronizável.
- * Cada domínio tem seu próprio `_updatedAt` para resolução de conflitos independente.
- */
 export interface SyncDomain<T> {
   _updatedAt: number;
   data: T;
 }
 
-/**
- * Payload completo enviado/recebido do Firebase.
- * A chave `meta` carrega informações de rastreamento para o anti-loop.
- */
 export interface SyncPayload {
   meta: {
     _writtenBy: string;  // deviceId do autor desta escrita
@@ -153,10 +109,6 @@ export interface SyncPayload {
   };
 }
 
-/**
- * Resultado parcial da resolução de conflitos.
- * Apenas os domínios que precisam ser aplicados localmente são retornados.
- */
 export interface MergedDomains {
   fixedBills?:           any[];
   incomes?:              any[];
@@ -165,43 +117,11 @@ export interface MergedDomains {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Gerenciamento de timestamps locais por domínio
-// Persiste o `_updatedAt` da última vez que cada domínio foi salvo localmente.
-// ──────────────────────────────────────────────────────────────────────────────
-const DOMAIN_TIMESTAMPS_KEY = "fin_sync_domain_timestamps";
-
-type DomainTimestamps = Record<string, number>;
-
-function getDomainTimestamps(): DomainTimestamps {
-  try {
-    const raw = localStorage.getItem(DOMAIN_TIMESTAMPS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function setDomainTimestamp(domain: string, ts: number): void {
-  const timestamps = getDomainTimestamps();
-  timestamps[domain] = ts;
-  localStorage.setItem(DOMAIN_TIMESTAMPS_KEY, JSON.stringify(timestamps));
-}
-
-export function clearDomainTimestamps(): void {
-  localStorage.removeItem(DOMAIN_TIMESTAMPS_KEY);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // PUSH BIDIRECIONAL — Envia apenas os domínios alterados desde o último push
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * `pushDomainsToServer` — Envia um subconjunto de domínios alterados para o Firebase.
- *
- * Política: Cada domínio é enviado com o timestamp atual.
- * O listener remoto só aplica um domínio se o timestamp remoto for maior que o local.
- *
- * @param domains - Mapa de domínios alterados com seus dados atualizados.
+ * `pushDomainsToServer` — Envia o estado atual com tombstones e timestamps para o Firebase.
  */
 export async function pushDomainsToServer(
   domains: Partial<Record<keyof MergedDomains, any[]>>
@@ -213,16 +133,24 @@ export async function pushDomainsToServer(
     const { db } = getFirebase();
     const now = Date.now();
 
-    // Monta apenas os domínios enviados com timestamp individual
+    const storageKeys = {
+      fixedBills: "fin_fixed_bills",
+      incomes: "fin_incomes",
+      invoices: "fin_invoices",
+      plannedInstallments: "fin_planned",
+    };
+
     const domainsPayload: SyncPayload["domains"] = {};
-    for (const [key, data] of Object.entries(domains)) {
+    for (const key of Object.keys(domains)) {
       const domainKey = key as keyof MergedDomains;
-      (domainsPayload as any)[domainKey] = {
+      const sKey = storageKeys[domainKey];
+      // Carrega a lista crua (com tombstones e timestamps individuais) do LocalStorage
+      const rawList = safeGetItem<any[]>(sKey, []);
+
+      domainsPayload[domainKey] = {
         _updatedAt: now,
-        data,
-      } satisfies SyncDomain<any[]>;
-      // Atualiza o timestamp local do domínio imediatamente após envio
-      setDomainTimestamp(domainKey, now);
+        data: rawList,
+      };
     }
 
     const payload: SyncPayload = {
@@ -234,7 +162,7 @@ export async function pushDomainsToServer(
     };
 
     const roomRef = ref(db, `sync_rooms/${code}`);
-    // `update` é não-destrutivo: não apaga domínios não enviados (merge parcial)
+    // `update` é não-destrutivo: não apaga domínios não enviados (merge parcial no nível raiz do DB)
     await update(roomRef, {
       "meta/_writtenBy": payload.meta._writtenBy,
       "meta/_updatedAt": payload.meta._updatedAt,
@@ -252,7 +180,6 @@ export async function pushDomainsToServer(
 
 /**
  * `pushToServer` — Atalho legado que envia todos os domínios de uma vez.
- * Mantido para compatibilidade com o SyncManager existente.
  */
 export async function pushToServer(data: {
   fixedBills: any[];
@@ -264,21 +191,61 @@ export async function pushToServer(data: {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// RESOLUÇÃO DE CONFLITOS — "Last Write Wins" por Domínio
+// RESOLUÇÃO DE CONFLITOS — Mesclagem Fina por Item (Fine-Grained Merge)
 // ──────────────────────────────────────────────────────────────────────────────
 
+function mergeRemoteWithLocal(localItems: any[], remoteItems: any[]): { mergedList: any[]; localHasNewer: boolean } {
+  const localMap = new Map<string, any>();
+  for (const item of localItems) {
+    localMap.set(item.id, item);
+  }
+
+  const remoteMap = new Map<string, any>();
+  for (const item of remoteItems) {
+    remoteMap.set(item.id, item);
+  }
+
+  const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+  const mergedList: any[] = [];
+  let localHasNewer = false;
+
+  for (const id of allIds) {
+    const localItem = localMap.get(id);
+    const remoteItem = remoteMap.get(id);
+
+    if (localItem && remoteItem) {
+      const localTs = localItem.updatedAt || 0;
+      const remoteTs = remoteItem.updatedAt || 0;
+
+      if (remoteTs > localTs) {
+        mergedList.push(remoteItem);
+      } else {
+        mergedList.push(localItem);
+        if (localTs > remoteTs) {
+          localHasNewer = true;
+        }
+      }
+    } else if (remoteItem) {
+      mergedList.push(remoteItem);
+    } else if (localItem) {
+      mergedList.push(localItem);
+      localHasNewer = true;
+    }
+  }
+
+  return { mergedList, localHasNewer };
+}
+
 /**
- * `resolveConflicts` — Compara os timestamps remotos vs. locais domínio a domínio.
- *
- * Política: "Last Write Wins" por campo.
- * Resultado: Retorna apenas os domínios remotos que são mais recentes que os locais,
- * portanto que precisam ser aplicados ao estado local.
+ * `resolveConflicts` — Mescla item por item utilizando timestamps individuais.
+ * Retorna os domínios que tiveram atualizações efetivas para o React.
  */
 function resolveConflicts(
   remoteDomains: SyncPayload["domains"]
-): MergedDomains {
-  const localTimestamps = getDomainTimestamps();
+): { merged: MergedDomains; needsPushBack: Partial<Record<keyof MergedDomains, boolean>> } {
   const merged: MergedDomains = {};
+  const needsPushBack: Partial<Record<keyof MergedDomains, boolean>> = {};
+
   const domainKeys: Array<keyof MergedDomains> = [
     "fixedBills",
     "incomes",
@@ -286,29 +253,56 @@ function resolveConflicts(
     "plannedInstallments",
   ];
 
+  const storageKeys = {
+    fixedBills: "fin_fixed_bills",
+    incomes: "fin_incomes",
+    invoices: "fin_invoices",
+    plannedInstallments: "fin_planned",
+  };
+
   for (const key of domainKeys) {
-    const remote = remoteDomains[key] as SyncDomain<any[]> | undefined;
-    if (!remote) continue;
+    const remoteDomain = remoteDomains[key];
+    if (!remoteDomain || !remoteDomain.data) continue;
 
-    const localTs = localTimestamps[key] ?? 0;
+    const sKey = storageKeys[key];
+    const localRaw = safeGetItem<any[]>(sKey, []);
+    const remoteRaw = remoteDomain.data;
 
-    if (remote._updatedAt > localTs) {
-      // Dado remoto mais recente — aplica e atualiza timestamp local
-      (merged as any)[key] = remote.data;
-      setDomainTimestamp(key, remote._updatedAt);
-      console.info(
-        `[syncService] Domínio "${key}" atualizado remotamente ` +
-        `(remoto: ${remote._updatedAt} > local: ${localTs})`
-      );
-    } else {
-      console.info(
-        `[syncService] Domínio "${key}" ignorado — dado local mais recente ` +
-        `(local: ${localTs} >= remoto: ${remote._updatedAt})`
-      );
+    // Executa a mesclagem fina item por item
+    const { mergedList, localHasNewer } = mergeRemoteWithLocal(localRaw, remoteRaw);
+
+    // Se temos dados locais mais novos, sinalizamos que precisamos sincronizar de volta com o Firebase
+    if (localHasNewer) {
+      needsPushBack[key] = true;
+    }
+
+    // Persiste a lista completa (com tombstones/deleted: true) localmente no LocalStorage
+    safeSetItem(sKey, mergedList);
+
+    // Atualiza a chave unificada "fin_v2:transacoes_fixas" se for fixedBills ou incomes
+    if (key === "fixedBills" || key === "incomes") {
+      const v2Key = "fin_v2:transacoes_fixas";
+      const v2Data = safeGetItem<{ rendas: any[]; contasFixas: any[] }>(v2Key, { rendas: [], contasFixas: [] });
+      if (key === "fixedBills") {
+        safeSetItem(v2Key, { ...v2Data, contasFixas: mergedList });
+      } else {
+        safeSetItem(v2Key, { ...v2Data, rendas: mergedList });
+      }
+    }
+
+    // Filtra apenas os registros ativos (não deletados) para o estado do React
+    const activeLocal = localRaw.filter((item: any) => !item.deleted);
+    const activeMerged = mergedList.filter((item: any) => !item.deleted);
+
+    // Dispara a atualização do React apenas se a lista ativa resultante for diferente da anterior
+    const isDiff = JSON.stringify(activeLocal) !== JSON.stringify(activeMerged);
+    if (isDiff) {
+      (merged as any)[key] = activeMerged;
+      console.info(`[syncService] Domínio "${key}" atualizado via mesclagem por item.`);
     }
   }
 
-  return merged;
+  return { merged, needsPushBack };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -317,13 +311,7 @@ function resolveConflicts(
 
 /**
  * `subscribeToRemoteChanges` — Inscreve-se em atualizações em tempo real do Firebase.
- *
- * Anti-loop garantido por 3 camadas:
- *  1. `_writtenBy`: ignora eventos escritos pelo próprio dispositivo.
- *  2. `isFirstCall`: ignora o primeiro snapshot (dados do Firebase ao conectar).
- *  3. Resolução de conflitos por timestamp: só aplica domínios mais recentes que o local.
- *
- * Retorna um `unsubscribe()` para cancelar o listener.
+ * O primeiro snapshot recebido ao conectar é processado para sincronizar o estado inicial imediatamente.
  */
 export function subscribeToRemoteChanges(
   onDataReceived: (merged: MergedDomains) => void,
@@ -336,30 +324,31 @@ export function subscribeToRemoteChanges(
     const { db } = getFirebase();
     const roomRef = ref(db, `sync_rooms/${code}`);
 
-    let isFirstCall = true;
-
     const handleSnapshot = (snapshot: DataSnapshot) => {
       const remoteRoom = snapshot.val() as SyncPayload | null;
 
       // Ignora snapshot vazio
       if (!remoteRoom?.meta || !remoteRoom?.domains) return;
 
-      // ─── Camada 1: Anti-loop por deviceId ───────────────────────────────
-      // Ignora qualquer evento cujo autor seja o próprio dispositivo.
+      // Ignora alterações cujo autor seja este próprio dispositivo
       if (remoteRoom.meta._writtenBy === DEVICE_ID) {
         return;
       }
 
-      // ─── Camada 2: Ignora o primeiro snapshot (estado inicial do Firebase) ──
-      if (isFirstCall) {
-        isFirstCall = false;
-        return;
+      // Processa a mesclagem e verifica se o estado local possui dados mais recentes
+      const { merged, needsPushBack } = resolveConflicts(remoteRoom.domains);
+
+      // Se houver domínios com dados locais mais novos, força um push back para o Firebase
+      if (Object.keys(needsPushBack).length > 0) {
+        console.info("[syncService] Dados locais mais novos detectados no carregamento. Atualizando servidor...");
+        const pushPayload: any = {};
+        for (const k of Object.keys(needsPushBack)) {
+          pushPayload[k] = []; // O pushDomainsToServer irá ignorar o dado do argumento e ler a lista crua com tombstones do LocalStorage
+        }
+        pushDomainsToServer(pushPayload);
       }
 
-      // ─── Camada 3: Resolução de conflitos "Last Write Wins" por domínio ──
-      const merged = resolveConflicts(remoteRoom.domains);
-
-      // Só dispara callback se houver ao menos 1 domínio a ser aplicado
+      // Dispara o callback para o React se houver mudanças nas listas ativas
       if (Object.keys(merged).length > 0) {
         onDataReceived(merged);
       }
@@ -376,3 +365,11 @@ export function subscribeToRemoteChanges(
     return () => {};
   }
 }
+
+const DOMAIN_TIMESTAMPS_KEY = "fin_sync_domain_timestamps";
+
+export function clearDomainTimestamps(): void {
+  localStorage.removeItem(DOMAIN_TIMESTAMPS_KEY);
+}
+
+
