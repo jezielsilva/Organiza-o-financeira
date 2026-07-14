@@ -16,64 +16,49 @@ import { parseInvoiceLine, extractTotalValueFromText, getPurchaseFullDate } from
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 /**
- * Extrai o texto de um PDF de forma estruturada, agrupando
- * os pedaços de texto em linhas baseando-se em suas posições Y verticais.
+ * Extrai o texto de uma página específica de um PDF de forma estruturada,
+ * agrupando os itens de texto em linhas baseando-se em suas posições Y verticais.
  */
-async function extractTextFromPdf(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+async function extractTextFromPage(pdf: any, pageNum: number): Promise<string> {
+  const page = await pdf.getPage(pageNum);
+  const content = await page.getTextContent();
+  const items = content.items as any[];
+  
+  if (items.length === 0) return "";
 
-  const textPages: string[] = [];
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    
-    // Agrupa itens de texto por coordenada Y (linha)
-    // No transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
-    // transform[5] representa a posição vertical (Y)
-    const items = content.items as any[];
-    
-    if (items.length === 0) continue;
-
-    // Ordena os itens primeiro pelo Y (de cima para baixo, decrescente)
-    // e depois pelo X (da esquerda para a direita, crescente)
-    items.sort((a, b) => {
-      const yDiff = b.transform[5] - a.transform[5];
-      if (Math.abs(yDiff) > 3) {
-        return yDiff; // Linhas diferentes
-      }
-      return a.transform[4] - b.transform[4]; // Mesma linha, ordena por X
-    });
-
-    const lines: string[] = [];
-    let currentY = items[0].transform[5];
-    let currentLineItems: string[] = [];
-
-    for (const item of items) {
-      const y = item.transform[5];
-      const text = item.str;
-
-      // Se a diferença de Y for maior que 3 pixels, consideramos uma nova linha
-      if (Math.abs(y - currentY) > 3) {
-        if (currentLineItems.length > 0) {
-          lines.push(currentLineItems.join(" "));
-        }
-        currentLineItems = [text];
-        currentY = y;
-      } else {
-        currentLineItems.push(text);
-      }
+  // Ordena os itens pelo Y (de cima para baixo, decrescente) e pelo X (da esquerda para a direita)
+  items.sort((a, b) => {
+    const yDiff = b.transform[5] - a.transform[5];
+    if (Math.abs(yDiff) > 3) {
+      return yDiff;
     }
+    return a.transform[4] - b.transform[4];
+  });
 
-    if (currentLineItems.length > 0) {
-      lines.push(currentLineItems.join(" "));
+  const lines: string[] = [];
+  let currentY = items[0].transform[5];
+  let currentLineItems: string[] = [];
+
+  for (const item of items) {
+    const y = item.transform[5];
+    const text = item.str;
+
+    if (Math.abs(y - currentY) > 3) {
+      if (currentLineItems.length > 0) {
+        lines.push(currentLineItems.join(" "));
+      }
+      currentLineItems = [text];
+      currentY = y;
+    } else {
+      currentLineItems.push(text);
     }
-
-    textPages.push(lines.join("\n"));
   }
 
-  return textPages.join("\n");
+  if (currentLineItems.length > 0) {
+    lines.push(currentLineItems.join(" "));
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -107,27 +92,39 @@ export async function parseInvoiceClientSide(
   file: File,
   selectedMonth: string
 ): Promise<CardInvoice> {
-  // 1. Extrai texto do PDF
-  const fullText = await extractTextFromPdf(file);
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  if (!fullText || fullText.trim().length < 10) {
-    throw new Error(
-      "Não foi possível extrair texto do PDF. O arquivo pode estar protegido, ser escaneado (imagem), ou estar vazio."
-    );
+  if (pdf.numPages === 0) {
+    throw new Error("O arquivo PDF está vazio ou corrompido.");
   }
 
-  // 2. Detecta o banco
-  const bankName = detectBankName(fullText);
+  // 1. Lemos a primeira página para pegar informações do cabeçalho (Banco, Total, Vencimento)
+  const firstPageText = await extractTextFromPage(pdf, 1);
+  const bankName = detectBankName(firstPageText);
+  let totalValue = extractTotalValueFromText(firstPageText) || 0;
 
-  // 3. Extrai valor total da fatura usando a função já existente no utils.ts
-  const extractedTotal = extractTotalValueFromText(fullText);
+  // 2. Lemos a ÚLTIMA página para pegar as transações detalhadas (gastos)
+  const lastPageNum = pdf.numPages;
+  const lastPageText = await extractTextFromPage(pdf, lastPageNum);
 
-  // 4. Parseia linha a linha para extrair lançamentos
-  const lines = fullText.split("\n");
+  // 3. Parseia linha a linha da ÚLTIMA página para extrair os lançamentos
+  const lines = lastPageText.split("\n");
+  
+  // Localiza o índice da linha que contém "LANÇAMENTOS NO BRASIL"
+  let startIndex = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].toUpperCase().includes("LANÇAMENTOS NO BRASIL") || lines[i].toUpperCase().includes("LANÇAMENTOS NACIONAIS")) {
+      startIndex = i;
+      break;
+    }
+  }
 
-  // Normaliza linhas muito longas (podem estar grudadas por tabs/espaços)
+  // Filtra as linhas a partir de "LANÇAMENTOS NO BRASIL"
+  const linesAfterHeader = lines.slice(startIndex);
+
   const normalizedLines: string[] = [];
-  for (const line of lines) {
+  for (const line of linesAfterHeader) {
     if (line.length > 120 && /\d{2}\/\d{2}/.test(line)) {
       const parts = line.split(/\s{3,}/); // divide por 3+ espaços
       normalizedLines.push(...parts.map((p) => p.trim()).filter(Boolean));
@@ -136,7 +133,7 @@ export async function parseInvoiceClientSide(
     }
   }
 
-  // 5. Agrupa por portadores (lógica do parser.py)
+  // 4. Agrupa por portadores na última página
   let currentPortador = "OUTROS";
   const purchasesByPortador: Record<string, ReturnType<typeof parseInvoiceLine>[]> = {
     OUTROS: [],
@@ -146,7 +143,7 @@ export async function parseInvoiceClientSide(
     const cleaned = line.trim();
     if (!cleaned) continue;
 
-    // Verifica mudança de portador
+    // Verifica se a linha indica mudança de portador
     let foundPortador = false;
     for (const p of KNOWN_PORTADORES) {
       if (cleaned.toUpperCase().includes(p) && cleaned.length < 40) {
@@ -170,7 +167,7 @@ export async function parseInvoiceClientSide(
     }
   }
 
-  // 6. Achata os lançamentos em uma lista única de CardPurchase
+  // 5. Achata os lançamentos em uma lista única de CardPurchase
   const flatPurchases: CardPurchase[] = [];
   let purchaseIndex = 0;
 
@@ -198,10 +195,7 @@ export async function parseInvoiceClientSide(
     }
   }
 
-  const needsReview = flatPurchases.length === 0;
-
-  // 7. Calcula o total: usa o valor extraído do cabeçalho, ou soma os lançamentos
-  let totalValue = extractedTotal || 0;
+  // Se não conseguimos extrair o total da primeira página, somamos os gastos da última página
   if (totalValue === 0 && flatPurchases.length > 0) {
     totalValue = flatPurchases.reduce((acc, p) => {
       return acc + (p.installmentValue || p.totalValue);
@@ -209,7 +203,9 @@ export async function parseInvoiceClientSide(
     totalValue = Math.round(totalValue * 100) / 100;
   }
 
-  // 8. Monta o objeto CardInvoice final
+  const needsReview = flatPurchases.length === 0;
+
+  // 6. Monta o objeto CardInvoice final
   const cardInvoice: CardInvoice = {
     id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
     referenceMonth: selectedMonth,
@@ -223,3 +219,4 @@ export async function parseInvoiceClientSide(
 
   return cardInvoice;
 }
+
