@@ -227,8 +227,8 @@ export function parseInvoiceLine(line: string): ParsedLine | null {
 
   if (isNaN(extractedValue) || extractedValue <= 0) return null;
 
-  // 3. Tenta extrair dados de parcelamento (Ex: "03/10", "1 de 5", "parc 2/12")
-  const parcelRegex = /(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})/i;
+  // 3. Tenta extrair dados de parcelamento (Ex: "-3/3", "12/15", " 2/12", "1 de 5")
+  const parcelRegex = /(?:-\s*|\s+)(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i;
   
   // Limpa o resto da linha para achar a descrição, tirando a data e o valor
   let description = clean
@@ -237,7 +237,7 @@ export function parseInvoiceLine(line: string): ParsedLine | null {
     .replace(/r\$\s*/i, "")
     .trim();
 
-  // Verifica se há parcelas
+  // Verifica se há parcelas especificamente no final da descrição antes da limpeza final
   const parcelMatch = description.match(parcelRegex);
   
   if (parcelMatch) {
@@ -247,8 +247,29 @@ export function parseInvoiceLine(line: string): ParsedLine | null {
     // Valida se os números de parcela fazem sentido lógico
     if (current > 0 && total >= current && total <= 120) {
       // Remove o trecho de parcelas da descrição para deixá-la limpa
-      description = description.replace(parcelMatch[0], "").replace(/\s*-\s*$/, "").trim();
+      description = description.replace(parcelMatch[0], "").trim();
       
+      return {
+        date: dateFound,
+        description: description || "Gasto Cartão",
+        isInstallment: true,
+        installmentCurrent: current,
+        installmentTotal: total,
+        installmentValue: extractedValue,
+        totalValue: Number((extractedValue * total).toFixed(2)),
+        isCredit
+      };
+    }
+  }
+
+  // Se não capturou no final com traço/espaço, tenta Regex genérico em qualquer ponto da descrição (ex: "LOJA 03/10")
+  const parcelRegexGeneric = /(\d{1,2})\s*\/([1-9]\d{0,1})\b/;
+  const parcelMatchGeneric = description.match(parcelRegexGeneric);
+  if (parcelMatchGeneric) {
+    const current = parseInt(parcelMatchGeneric[1], 10);
+    const total = parseInt(parcelMatchGeneric[2], 10);
+    if (current > 0 && total >= current && total <= 120) {
+      description = description.replace(parcelMatchGeneric[0], "").replace(/\s*-\s*$/, "").trim();
       return {
         date: dateFound,
         description: description || "Gasto Cartão",
@@ -312,4 +333,39 @@ export function extractTotalValueFromText(text: string): number | null {
   }
   return null;
 }
+
+export interface SaldosFuturos {
+  totalParcelasPendentes: number;
+  parcelasProximaFatura: number;
+  parcelasAnuidadeFutura: number;
+}
+
+/**
+ * Analisa o texto bruto buscando a seção "SALDOS FUTUROS" e extrai os valores consolidados.
+ */
+export function extractSaldosFuturos(text: string): SaldosFuturos {
+  const res: SaldosFuturos = {
+    totalParcelasPendentes: 0,
+    parcelasProximaFatura: 0,
+    parcelasAnuidadeFutura: 0
+  };
+
+  const totalParcelasMatch = text.match(/Total de parcelas a pagar:\s*(?:R\$\s*)?([\d.]+,\d{2})/i);
+  if (totalParcelasMatch) {
+    res.totalParcelasPendentes = parseValorBR(totalParcelasMatch[1]);
+  }
+
+  const proximaFaturaMatch = text.match(/Total de despesas parceladas a vencer na próxima fatura:\s*(?:R\$\s*)?([\d.]+,\d{2})/i);
+  if (proximaFaturaMatch) {
+    res.parcelasProximaFatura = parseValorBR(proximaFaturaMatch[1]);
+  }
+
+  const anuidadeMatch = text.match(/Total de parcelas a vencer da anuidade:\s*(?:R\$\s*)?([\d.]+,\d{2})/i);
+  if (anuidadeMatch) {
+    res.parcelasAnuidadeFutura = parseValorBR(anuidadeMatch[1]);
+  }
+
+  return res;
+}
+
 
