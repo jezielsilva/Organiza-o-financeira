@@ -318,8 +318,8 @@ export function extractTotalValueFromText(text: string): number | null {
   const lines = text.split("\n");
   
   const patterns = [
-    /(?:total\s+da\s+fatura\s+atual|total\s+desta\s+fatura|valor\s+total\s+da\s+fatura|total\s+a\s+pagar|pagamento\s+mínimo|fatura\s+atual)\s*(?:r\$)?\s*([\d.]+,\d{2})/i,
-    /(?:fatura\s+atual|total\s+fatura)\s*(?:r\$)?\s*([\d.]+,\d{2})/i,
+    /(?:total\s+da\s+fatura\s+atual|total\s+desta\s+fatura|valor\s+total\s+da\s+fatura|total\s+a\s+pagar|fatura\s+atual)\s*(?:r\$)?\s*([\d.]+,\d{2})/i,
+    /(?:fatura\s+atual|total\s+fatura|total\s+da\s+sua\s+fatura)\s*(?:r\$)?\s*([\d.]+,\d{2})/i,
     /total\s*(?:r\$)?\s*([\d.]+,\d{2})/i
   ];
 

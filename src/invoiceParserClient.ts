@@ -16,7 +16,8 @@ import { parseInvoiceLine, extractTotalValueFromText, getPurchaseFullDate } from
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 /**
- * Extrai todo o texto legível de um arquivo PDF carregado no browser.
+ * Extrai o texto de um PDF de forma estruturada, agrupando
+ * os pedaços de texto em linhas baseando-se em suas posições Y verticais.
  */
 async function extractTextFromPdf(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
@@ -27,10 +28,49 @@ async function extractTextFromPdf(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item: any) => item.str)
-      .join(" ");
-    textPages.push(pageText);
+    
+    // Agrupa itens de texto por coordenada Y (linha)
+    // No transform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
+    // transform[5] representa a posição vertical (Y)
+    const items = content.items as any[];
+    
+    if (items.length === 0) continue;
+
+    // Ordena os itens primeiro pelo Y (de cima para baixo, decrescente)
+    // e depois pelo X (da esquerda para a direita, crescente)
+    items.sort((a, b) => {
+      const yDiff = b.transform[5] - a.transform[5];
+      if (Math.abs(yDiff) > 3) {
+        return yDiff; // Linhas diferentes
+      }
+      return a.transform[4] - b.transform[4]; // Mesma linha, ordena por X
+    });
+
+    const lines: string[] = [];
+    let currentY = items[0].transform[5];
+    let currentLineItems: string[] = [];
+
+    for (const item of items) {
+      const y = item.transform[5];
+      const text = item.str;
+
+      // Se a diferença de Y for maior que 3 pixels, consideramos uma nova linha
+      if (Math.abs(y - currentY) > 3) {
+        if (currentLineItems.length > 0) {
+          lines.push(currentLineItems.join(" "));
+        }
+        currentLineItems = [text];
+        currentY = y;
+      } else {
+        currentLineItems.push(text);
+      }
+    }
+
+    if (currentLineItems.length > 0) {
+      lines.push(currentLineItems.join(" "));
+    }
+
+    textPages.push(lines.join("\n"));
   }
 
   return textPages.join("\n");
