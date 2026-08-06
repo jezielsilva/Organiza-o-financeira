@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { FixedBill, IncomeSource, CardInvoice, PlannedInstallment, MesCalculadoSalvo, AppStorageSchema } from "./types";
-import { formatMonth, addMonths } from "./utils";
+import { formatMonth, addMonths, getCurrentMonth } from "./utils";
 import {
   fixedBillsStorage,
   incomesStorage,
@@ -40,19 +40,19 @@ const INITIAL_BILLS: FixedBill[] = [
 ];
 
 const INITIAL_INCOMES: IncomeSource[] = [
-  { id: "inc-1", label: "Salário Principal", value: 5800, month: "2026-07" },
-  { id: "inc-2", label: "Projeto Freelance Website", value: 1500, month: "2026-07" },
+  { id: "inc-1", label: "Salário Principal", value: 5800, month: getCurrentMonth() },
+  { id: "inc-2", label: "Projeto Freelance Website", value: 1500, month: getCurrentMonth() },
   // Pré-cadastrado para os próximos meses para dar vida à projeção
-  { id: "inc-3", label: "Salário Principal", value: 5800, month: "2026-08" },
-  { id: "inc-4", label: "Salário Principal", value: 5800, month: "2026-09" },
+  { id: "inc-3", label: "Salário Principal", value: 5800, month: addMonths(getCurrentMonth(), 1) },
+  { id: "inc-4", label: "Salário Principal", value: 5800, month: addMonths(getCurrentMonth(), 2) },
 ];
 
 const INITIAL_INVOICES: CardInvoice[] = [
   {
     id: "inv-demo-july",
-    referenceMonth: "2026-07",
+    referenceMonth: getCurrentMonth(),
     uploadedAt: new Date().toISOString(),
-    fileName: "fatura_nubank_julho.pdf",
+    fileName: `fatura_nubank_${getCurrentMonth()}.pdf`,
     totalValue: 980,
     parsedAt: new Date().toISOString(),
     needsReview: false,
@@ -61,7 +61,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
         id: "pur-1",
         description: "Supermercado Pão de Açúcar",
         category: "Alimentação",
-        purchaseDate: "2026-07-02",
+        purchaseDate: `${getCurrentMonth()}-02`,
         totalValue: 350,
         isInstallment: false,
       },
@@ -69,7 +69,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
         id: "pur-2",
         description: "Posto Shell Combustível",
         category: "Transporte",
-        purchaseDate: "2026-07-05",
+        purchaseDate: `${getCurrentMonth()}-05`,
         totalValue: 180,
         isInstallment: false,
       },
@@ -77,7 +77,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
         id: "pur-3",
         description: "Smartphone Xiaomi 10x",
         category: "Tecnologia",
-        purchaseDate: "2026-04-10",
+        purchaseDate: `${addMonths(getCurrentMonth(), -3)}-10`,
         totalValue: 1200,
         isInstallment: true,
         installmentCurrent: 4,
@@ -89,7 +89,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
         id: "pur-4",
         description: "Curso de UI/UX Designer 12x",
         category: "Educação",
-        purchaseDate: "2026-05-15",
+        purchaseDate: `${addMonths(getCurrentMonth(), -2)}-15`,
         totalValue: 1800,
         isInstallment: true,
         installmentCurrent: 3,
@@ -101,7 +101,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
         id: "pur-5",
         description: "Restaurante Outback",
         category: "Alimentação",
-        purchaseDate: "2026-07-08",
+        purchaseDate: `${getCurrentMonth()}-08`,
         totalValue: 180,
         isInstallment: false,
       },
@@ -112,7 +112,7 @@ const INITIAL_INVOICES: CardInvoice[] = [
 const INITIAL_PLANNED: PlannedInstallment[] = [];
 
 export default function App() {
-  const [selectedMonth, setSelectedMonth] = useState<string>("2026-07");
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [fabOpen, setFabOpen] = useState<boolean>(false);
@@ -150,8 +150,8 @@ export default function App() {
     const meses = mesesCalculadosStorage.load();
     if (meses.length === 0) return [];
     
-    // Obtém o mês atual
-    const mesAtual = new Date().toISOString().substring(0, 7);
+    // Obtém o mês atual do sistema do usuário
+    const mesAtual = getCurrentMonth();
     
     // Carrega dados base de receitas e despesas
     const v2 = transacoesFixasStorage.load();
@@ -199,7 +199,7 @@ export default function App() {
   // 2. Persiste os 3 domínios do schema definitivo atomicamente.
   // 3. Atualiza o estado global e fecha a tela de onboarding.
   const handleOnboardingComplete = (newIncomes: IncomeSource[], newBills: FixedBill[]) => {
-    const mesAtual = new Date().toISOString().substring(0, 7);
+    const mesAtual = getCurrentMonth();
 
     // Motor de Cálculo — função pura, sem valores fictícios
     const projecao = calcularProjecao({

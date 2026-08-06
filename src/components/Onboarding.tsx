@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { FixedBill, IncomeSource } from "../types";
+import { getCurrentMonth } from "../utils";
 import { normalizarDiaVencimento } from "../services/calculationEngine";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -197,7 +198,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ========== Conclusão ==========
   const handleFinish = () => {
-    const currentMonth = new Date().toISOString().substring(0, 7);
+    const currentMonth = getCurrentMonth();
 
     const parsedIncomes: IncomeSource[] = incomes.map((inc, i) => ({
       id: `onb-inc-${i}-${Date.now()}`,

@@ -13,6 +13,14 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+// Retorna o mês corrente do sistema do usuário no formato "AAAA-MM" (ex: "2026-08")
+export function getCurrentMonth(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
 // Formata strings "AAAA-MM" para exibição (ex: "2026-07" -> "Julho / 2026")
 export function formatMonth(yearMonth: string): string {
   const [year, month] = yearMonth.split("-").map(Number);
