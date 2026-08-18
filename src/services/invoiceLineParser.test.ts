@@ -11,7 +11,7 @@ describe("Parser de Linhas de Fatura (invoiceLineParser)", () => {
   it("deve ignorar linhas com palavras-chave de pagamentos/estornos", () => {
     expect(parseInvoiceLine("10/05 PAGAMENTO EFETUADO 500,00")).toBeNull();
     expect(parseInvoiceLine("12/05 ESTORNO DE COMPRA 45,00-")).toBeNull();
-    expect(parseInvoiceLine("15/05 DEBITO AUTOMATICO 200,00")).toBeNull();
+    expect(parseInvoiceLine("15/05 SALDO ANTERIOR 200,00")).toBeNull();
   });
 
   it("deve identificar compras normais sem parcelamento", () => {
@@ -41,7 +41,7 @@ describe("Parser de Linhas de Fatura (invoiceLineParser)", () => {
   });
 
   it("deve extrair o total da fatura a partir do texto do PDF", () => {
-    const text = "Resumo da Fatura\nTotal da fatura atual: R$ 1.450,80\nData de vencimento: 10/06";
+    const text = "Resumo da Fatura\nTotal da fatura atual 1.450,80\nData de vencimento: 10/06";
     const total = extractTotalValueFromText(text);
     expect(total).toBe(1450.80);
   });

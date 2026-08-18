@@ -1,0 +1,33 @@
+name: controle-financeiro
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: controle-financeiro-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY:-}
+      - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN:-}
+      - VITE_FIREBASE_DATABASE_URL=${VITE_FIREBASE_DATABASE_URL:-}
+      - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID:-}
+      - VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET:-}
+      - VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+      - VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID:-}
+    volumes:
+      - sync_data:/app/sync_data
+    networks:
+      - app-network
+
+volumes:
+  sync_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
