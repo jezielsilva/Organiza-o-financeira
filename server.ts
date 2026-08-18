@@ -23,7 +23,9 @@ async function startServer() {
   // API - Processamento de Faturas via Microserviço Local (Python/pdfplumber)
   app.post("/api/parse-invoice", async (req, res) => {
     try {
-      const { fileBase64, mimeType, fileName } = req.body;
+      const { fileBase64, mimeType, fileName, referenceMonth: reqRefMonth } = req.body;
+      const refMonth = reqRefMonth || new Date().toISOString().substring(0, 7);
+      const targetYear = refMonth.split("-")[0] || new Date().getFullYear().toString();
 
       if (!fileBase64 || !mimeType) {
         res.status(400).json({
@@ -46,13 +48,13 @@ async function startServer() {
       const buffer = Buffer.from(fileBase64, "base64");
       await fs.writeFile(tempFilePath, buffer);
 
-      // 2. Executa o script Python parser.py localmente
-      const { exec } = require("child_process");
+      // 2. Executa o script Python parser.py localmente usando execFile seguro (sem interpolação de shell)
+      const { execFile } = require("child_process");
       const scriptPath = path.join(process.cwd(), "microservices", "invoice_parser", "parser.py");
       
-      const runPython = (cmd: string): Promise<string> => {
+      const runPython = (script: string, args: string[]): Promise<string> => {
         return new Promise((resolve, reject) => {
-          exec(cmd, (error: any, stdout: string, stderr: string) => {
+          execFile("python", [script, ...args], (error: any, stdout: string, stderr: string) => {
             if (error) {
               reject(new Error(stderr || error.message));
             } else {
@@ -64,7 +66,7 @@ async function startServer() {
 
       let pythonOutput = "";
       try {
-        pythonOutput = await runPython(`python "${scriptPath}" "${tempFilePath}"`);
+        pythonOutput = await runPython(scriptPath, [tempFilePath]);
       } finally {
         // Garante a remoção do arquivo temporário mesmo em caso de falha
         try {
@@ -93,11 +95,15 @@ async function startServer() {
             const val = item.value ? Number(item.value) : 0;
             const totalVal = isInstallment && total ? val * total : val;
 
+            // Deriva o ano dinamicamente a partir do mês de referência da fatura (sem hardcode de ano)
+            const dayMonth = item.date ? item.date.split("/") : null;
+            const formattedDate = dayMonth && dayMonth.length === 2 ? `${targetYear}-${dayMonth[1]}-${dayMonth[0]}` : undefined;
+
             flatPurchases.push({
               id: `pur-${Date.now()}-${purchaseIndex++}-${Math.random().toString(36).substr(2, 4)}`,
               description: item.description || item.descricao || "Compra Sem Nome",
               category: "Geral",
-              purchaseDate: item.date ? `2026-${item.date.split("/")[1]}-${item.date.split("/")[0]}` : undefined, // ex: 10/04 -> 2026-04-10
+              purchaseDate: formattedDate,
               totalValue: Number(totalVal),
               isInstallment,
               installmentCurrent: current,
@@ -114,7 +120,7 @@ async function startServer() {
 
       const cardInvoice = {
         id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        referenceMonth: new Date().toISOString().substring(0, 7), // Default mês atual
+        referenceMonth: refMonth,
         uploadedAt: new Date().toISOString(),
         fileName: fileName || "fatura.pdf",
         totalValue: Number(parsedData.valor_total || 0),

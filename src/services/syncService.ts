@@ -372,4 +372,40 @@ export function clearDomainTimestamps(): void {
   localStorage.removeItem(DOMAIN_TIMESTAMPS_KEY);
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Provedor de Sincronização (Padrão Provider / SOLID DIP & LSP)
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * FirebaseSyncProvider — fachada de conveniência que agrupa as funções
+ * de sincronização do módulo. Não implementa ISyncProvider diretamente pois
+ * opera com API de funções standalone (getSyncCode, pushDomainsToServer, etc.)
+ * que diferem da interface genérica de injeção de dependência.
+ */
+export class FirebaseSyncProvider {
+  isConfigured(): boolean {
+    return isFirebaseConfigured();
+  }
+
+  getSyncCode(): string | null {
+    return getSyncCode();
+  }
+
+  setSyncCode(code: string): void {
+    setSyncCode(code);
+  }
+
+  clearSyncCode(): void {
+    clearSyncCode();
+  }
+
+  async pushDomains(domains: Partial<Record<string, any[]>>): Promise<boolean> {
+    return pushDomainsToServer(domains);
+  }
+}
+
+export const firebaseSyncProvider = new FirebaseSyncProvider();
+
+
+
 

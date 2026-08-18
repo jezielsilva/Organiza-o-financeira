@@ -346,3 +346,84 @@ export function clearAppState(): void {
   localStorage.removeItem(SCHEMA_KEYS.TRANSACOES_FIXAS);
   localStorage.removeItem(SCHEMA_KEYS.MESES_CALCULADOS);
 }
+
+import type { IStorageRepository, IFinancialData } from "../types";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Funções de tradução entre schema legado e IFinancialData (schema novo/SOLID)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export function loadAllData(): IFinancialData {
+  const transacoes = transacoesFixasStorage.load();
+  const allInvoices = invoicesStorage.getAll([]);
+  const allPlanned = plannedInstallmentsStorage.getAll([]);
+  const isOnboarded = configuracoesStorage.isOnboardingCompleto();
+
+  return {
+    incomes: transacoes.rendas,
+    fixedBills: transacoes.contasFixas,
+    invoices: allInvoices,
+    plannedInstallments: allPlanned,
+    hasOnboarded: isOnboarded,
+  };
+}
+
+export function saveAllData(data: IFinancialData): void {
+  transacoesFixasStorage.save(data.incomes, data.fixedBills);
+  invoicesStorage.saveAll(data.invoices);
+  plannedInstallmentsStorage.saveAll(data.plannedInstallments);
+  if (data.hasOnboarded && !configuracoesStorage.isOnboardingCompleto()) {
+    configuracoesStorage.save(new Date().toISOString().substring(0, 7));
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Repositório Unificado (Padrão Repository & SOLID LSP/DIP)
+// ──────────────────────────────────────────────────────────────────────────────
+
+export class UnifiedStorageRepository implements IStorageRepository {
+  loadAll(): IFinancialData {
+    return loadAllData();
+  }
+
+  saveAll(data: IFinancialData): void {
+    saveAllData(data);
+  }
+
+  clear(): void {
+    localStorage.clear();
+  }
+
+  loadAppState(): import("../types").AppStorageSchema | null {
+    return loadAppState();
+  }
+
+  loadConfiguracoes(): import("../types").ConfiguracoesUsuario | null {
+    return configuracoesStorage.load();
+  }
+
+  saveTransacoesFixas(rendas: IncomeSource[], contasFixas: FixedBill[]): void {
+    transacoesFixasStorage.save(rendas, contasFixas);
+  }
+
+  getAllInvoices(): CardInvoice[] {
+    return invoicesStorage.getAll([]);
+  }
+
+  saveAllInvoices(invoices: CardInvoice[]): void {
+    invoicesStorage.saveAll(invoices);
+  }
+
+  getAllPlannedInstallments(): PlannedInstallment[] {
+    return plannedInstallmentsStorage.getAll([]);
+  }
+
+  saveAllPlannedInstallments(planned: PlannedInstallment[]): void {
+    plannedInstallmentsStorage.saveAll(planned);
+  }
+}
+
+export const unifiedStorageRepository = new UnifiedStorageRepository();
+export const defaultStorageRepository = unifiedStorageRepository;
+
+

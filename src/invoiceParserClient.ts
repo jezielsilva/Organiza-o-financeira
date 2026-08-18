@@ -9,7 +9,7 @@
  */
 
 import * as pdfjsLib from "pdfjs-dist";
-import type { CardInvoice, CardPurchase } from "./types";
+import type { CardInvoice, CardPurchase, IInvoiceParser, IInvoiceParseOptions } from "./types";
 import { parseInvoiceLine, extractTotalValueFromText, getPurchaseFullDate } from "./utils";
 
 // Configura o worker do pdf.js para rodar em uma Web Worker separada.
@@ -300,3 +300,12 @@ export async function parseInvoiceClientSide(
 
   return cardInvoice;
 }
+
+export class PdfJsInvoiceParser implements IInvoiceParser {
+  async parse(file: File, options: IInvoiceParseOptions): Promise<CardInvoice> {
+    return parseInvoiceClientSide(file, options.referenceMonth);
+  }
+}
+
+export const pdfJsInvoiceParser = new PdfJsInvoiceParser();
+

@@ -3,23 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { FixedBill, IncomeSource, CardInvoice, PlannedInstallment, MesCalculadoSalvo, AppStorageSchema } from "./types";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { FixedBill, IncomeSource, CardInvoice, PlannedInstallment } from "./types";
 import { formatMonth, addMonths, getCurrentMonth } from "./utils";
-import {
-  fixedBillsStorage,
-  incomesStorage,
-  invoicesStorage,
-  plannedInstallmentsStorage,
-  configuracoesStorage,
-  transacoesFixasStorage,
-  mesesCalculadosStorage,
-  saveAppState,
-  loadAppState,
-} from "./services/storageService";
-import { calcularProjecao, rotacionarJanelaTemporal } from "./services/calculationEngine";
+import { unifiedStorageRepository, loadAllData } from "./services/storageService";
 import { exportarBackupDoApp } from "./services/backupService";
-import { pushToServer, pushDomainsToServer, MergedDomains, getSyncCode, isFirebaseConfigured, SyncStatus } from "./services/syncService";
+import { MergedDomains, SyncStatus } from "./services/syncService";
+import { useFinancialState } from "./hooks/useFinancialState";
+import { useSyncEngine } from "./hooks/useSyncEngine";
 import Dashboard from "./components/Dashboard";
 import FixedBills from "./components/FixedBills";
 import CardInvoices from "./components/CardInvoices";
@@ -31,192 +22,52 @@ import SyncPage from "./components/SyncPage";
 import { LayoutDashboard, Wallet, CreditCard, ArrowUpRight, BarChart3, ChevronLeft, ChevronRight, Coins, Plus, Download, Share, Smartphone, Cloud, CloudOff, CloudUpload, WifiOff, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-// --- Dados Iniciais de Demonstração (Caso o localStorage esteja vazio) ---
-const INITIAL_BILLS: FixedBill[] = [
-  { id: "bill-1", name: "Aluguel & Condomínio", value: 1650, dueDay: 5, category: "Moradia", active: true },
-  { id: "bill-2", name: "Internet Fibra", value: 120, dueDay: 10, category: "Serviços", active: true },
-  { id: "bill-3", name: "Netflix Premium", value: 55.9, dueDay: 15, category: "Assinaturas", active: true },
-  { id: "bill-4", name: "Academia Convênio", value: 110, dueDay: 20, category: "Saúde", active: true },
-];
-
-const INITIAL_INCOMES: IncomeSource[] = [
-  { id: "inc-1", label: "Salário Principal", value: 5800, month: getCurrentMonth() },
-  { id: "inc-2", label: "Projeto Freelance Website", value: 1500, month: getCurrentMonth() },
-  // Pré-cadastrado para os próximos meses para dar vida à projeção
-  { id: "inc-3", label: "Salário Principal", value: 5800, month: addMonths(getCurrentMonth(), 1) },
-  { id: "inc-4", label: "Salário Principal", value: 5800, month: addMonths(getCurrentMonth(), 2) },
-];
-
-const INITIAL_INVOICES: CardInvoice[] = [
-  {
-    id: "inv-demo-july",
-    referenceMonth: getCurrentMonth(),
-    uploadedAt: new Date().toISOString(),
-    fileName: `fatura_nubank_${getCurrentMonth()}.pdf`,
-    totalValue: 980,
-    parsedAt: new Date().toISOString(),
-    needsReview: false,
-    purchases: [
-      {
-        id: "pur-1",
-        description: "Supermercado Pão de Açúcar",
-        category: "Alimentação",
-        purchaseDate: `${getCurrentMonth()}-02`,
-        totalValue: 350,
-        isInstallment: false,
-      },
-      {
-        id: "pur-2",
-        description: "Posto Shell Combustível",
-        category: "Transporte",
-        purchaseDate: `${getCurrentMonth()}-05`,
-        totalValue: 180,
-        isInstallment: false,
-      },
-      {
-        id: "pur-3",
-        description: "Smartphone Xiaomi 10x",
-        category: "Tecnologia",
-        purchaseDate: `${addMonths(getCurrentMonth(), -3)}-10`,
-        totalValue: 1200,
-        isInstallment: true,
-        installmentCurrent: 4,
-        installmentTotal: 10,
-        installmentValue: 120,
-        installmentsRemaining: 6,
-      },
-      {
-        id: "pur-4",
-        description: "Curso de UI/UX Designer 12x",
-        category: "Educação",
-        purchaseDate: `${addMonths(getCurrentMonth(), -2)}-15`,
-        totalValue: 1800,
-        isInstallment: true,
-        installmentCurrent: 3,
-        installmentTotal: 12,
-        installmentValue: 150,
-        installmentsRemaining: 9,
-      },
-      {
-        id: "pur-5",
-        description: "Restaurante Outback",
-        category: "Alimentação",
-        purchaseDate: `${getCurrentMonth()}-08`,
-        totalValue: 180,
-        isInstallment: false,
-      },
-    ],
-  },
-];
-
-const INITIAL_PLANNED: PlannedInstallment[] = [];
-
 export default function App() {
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [fabOpen, setFabOpen] = useState<boolean>(false);
   const [storageError, setStorageError] = useState<boolean>(false);
-  // Versão dos dados — incrementada em cada mudança para disparar push de sincronização
   const [dataVersion, setDataVersion] = useState<number>(0);
 
-  // ─── Estado de Sincronização (elevado para App para ser compartilhado entre SyncManager e SyncPage) ──
-  const [syncCode, setSyncCodeState] = useState<string | null>(getSyncCode);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => {
-    if (!isFirebaseConfigured()) return "not_configured";
-    return getSyncCode() ? "synced" : "no_code";
-  });
+  // Custom Hooks com SRP para gerenciamento do estado financeiro e de sincronização
+  const {
+    hasOnboarded,
+    fixedBills,
+    setFixedBills,
+    incomes,
+    setIncomes,
+    invoices,
+    setInvoices,
+    plannedInstallments,
+    setPlannedInstallments,
+    handleCompleteOnboarding,
+  } = useFinancialState();
+
+  // Controle local de exibição do onboarding
+  const showOnboarding = !hasOnboarded;
+
+  const currentAppData = useMemo(() => ({
+    fixedBills,
+    incomes,
+    invoices,
+    plannedInstallments,
+  }), [fixedBills, incomes, invoices, plannedInstallments]);
+
+  const {
+    syncCode,
+    setSyncCodeState,
+    syncStatus,
+    setSyncStatus,
+    incomingDomains,
+    handleSyncActivated,
+  } = useSyncEngine(currentAppData);
 
   // --- Estados do PWA Install Prompt ---
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState<boolean>(false);
   const [isIOS, setIsIOS] = useState<boolean>(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState<boolean>(false);
-
-  // ─── Verificação de Primeiro Acesso (schema v2) ────────────────────────────
-  // Usa configuracoesStorage.isOnboardingCompleto() como fonte de verdade.
-  // Fallback: checa também as chaves legadas (fin_*) para usuários antigos.
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    const completoV2 = configuracoesStorage.isOnboardingCompleto();
-    if (completoV2) return false;
-    // Fallback para dados legados (usuários que tinham dados antes desta versão)
-    const legacyBills = localStorage.getItem("fin_fixed_bills");
-    const legacyIncomes = localStorage.getItem("fin_incomes");
-    return !legacyBills && !legacyIncomes;
-  });
-
-  // ─── Projeção de 12 Meses com Rotação Temporal (Rolling Window) ────────────
-  const [mesesCalculados, setMesesCalculados] = useState<MesCalculadoSalvo[]>(() => {
-    const meses = mesesCalculadosStorage.load();
-    if (meses.length === 0) return [];
-    
-    // Obtém o mês atual do sistema do usuário
-    const mesAtual = getCurrentMonth();
-    
-    // Carrega dados base de receitas e despesas
-    const v2 = transacoesFixasStorage.load();
-    const rendaMensal = v2.rendas.reduce((acc, r) => acc + r.value, 0);
-    const custoFixo = v2.contasFixas.filter(c => c.active).reduce((acc, c) => acc + c.value, 0);
-    
-    // Rotaciona a projeção caso tenhamos mudado de mês/ano
-    const rotacionados = rotacionarJanelaTemporal(meses, mesAtual, rendaMensal, custoFixo);
-    
-    // Se houve rotação (elementos mudaram), atualiza o localStorage de forma atômica
-    if (JSON.stringify(meses) !== JSON.stringify(rotacionados)) {
-      try {
-        mesesCalculadosStorage.save(rotacionados);
-      } catch (e) {
-        console.error("Erro ao salvar rotação temporal:", e);
-      }
-    }
-    
-    return rotacionados;
-  });
-
-  // ─── Inicialização dos Estados — schema v2 tem prioridade sobre dados legados ─
-  const [fixedBills, setFixedBills] = useState<FixedBill[]>(() => {
-    const v2 = transacoesFixasStorage.load();
-    if (v2.contasFixas.length > 0) return v2.contasFixas;
-    return fixedBillsStorage.getAll([]); // fallback legado
-  });
-
-  const [incomes, setIncomes] = useState<IncomeSource[]>(() => {
-    const v2 = transacoesFixasStorage.load();
-    if (v2.rendas.length > 0) return v2.rendas;
-    return incomesStorage.getAll([]); // fallback legado
-  });
-
-  const [invoices, setInvoices] = useState<CardInvoice[]>(() => {
-    return invoicesStorage.getAll(INITIAL_INVOICES);
-  });
-
-  const [plannedInstallments, setPlannedInstallments] = useState<PlannedInstallment[]>(() => {
-    return plannedInstallmentsStorage.getAll(INITIAL_PLANNED);
-  });
-
-  // ─── Conclusão do Onboarding ────────────────────────────────────────────────
-  // 1. Chama o Motor de Cálculo para gerar a projeção de 12 meses.
-  // 2. Persiste os 3 domínios do schema definitivo atomicamente.
-  // 3. Atualiza o estado global e fecha a tela de onboarding.
-  const handleOnboardingComplete = (newIncomes: IncomeSource[], newBills: FixedBill[]) => {
-    const mesAtual = getCurrentMonth();
-
-    // Motor de Cálculo — função pura, sem valores fictícios
-    const projecao = calcularProjecao({
-      mesInicial: mesAtual,
-      rendas: newIncomes,
-      contasFixas: newBills,
-    });
-
-    // Persiste os 3 domínios no localStorage
-    saveAppState(mesAtual, newIncomes, newBills, projecao.meses);
-
-    // Atualiza o estado global do app
-    setIncomes(newIncomes);
-    setFixedBills(newBills);
-    setMesesCalculados(projecao.meses);
-    setShowOnboarding(false);
-  };
 
   // ─── PWA: Escuta o evento beforeinstallprompt e detecta iOS ───────────────────
   useEffect(() => {
@@ -263,117 +114,43 @@ export default function App() {
   };
 
   // ─── Sync Check (Resiliência contra limpeza do cache do SO) ──────────────────
-  // Toda vez que a janela ganha foco (ex: usuário minimizou e voltou),
-  // valida e recarrega os dados do storage para garantir que não sumiram.
   useEffect(() => {
     const checkSyncIntegrity = () => {
-      const state = loadAppState();
-      if (state) {
-        // Se a config do storage existe e onboarding está completo, garante sincronia
-        setIncomes((prev) => 
-          JSON.stringify(prev) !== JSON.stringify(state.transacoes_fixas.rendas)
-            ? state.transacoes_fixas.rendas 
-            : prev
-        );
-        setFixedBills((prev) => 
-          JSON.stringify(prev) !== JSON.stringify(state.transacoes_fixas.contasFixas)
-            ? state.transacoes_fixas.contasFixas 
-            : prev
-        );
-        setMesesCalculados((prev) => 
-          JSON.stringify(prev) !== JSON.stringify(state.meses_calculados)
-            ? state.meses_calculados 
-            : prev
-        );
-        setShowOnboarding(false);
-      } else {
-        // Se o storage foi limpo de forma agressiva pelo SO, restabelece o onboarding
-        const completoV2 = configuracoesStorage.isOnboardingCompleto();
-        if (!completoV2) {
-          setShowOnboarding(true);
-        }
-      }
+      const freshData = loadAllData();
+      setIncomes((prev) =>
+        JSON.stringify(prev) !== JSON.stringify(freshData.incomes) ? freshData.incomes : prev
+      );
+      setFixedBills((prev) =>
+        JSON.stringify(prev) !== JSON.stringify(freshData.fixedBills) ? freshData.fixedBills : prev
+      );
     };
 
     window.addEventListener("focus", checkSyncIntegrity);
-    // Executa uma verificação ativa na montagem
-    checkSyncIntegrity();
 
     return () => {
       window.removeEventListener("focus", checkSyncIntegrity);
     };
-  }, []);
-
-  // Flag para rastrear se a mudança de estado atual veio do servidor (evita loops de sincronização)
-  // Stores the set of domain keys currently being applied from a remote source.
-  // This prevents the local persistence useEffects from triggering a redundant push-back.
-  const incomingDomains = useRef<Set<string>>(new Set());
-
-  // ─── Recalcula projeção e salva no schema v2 estruturado ao mudar rendas ou contas fixas ───
-  useEffect(() => {
-    if (showOnboarding) return;
-
-    // Salva rendas e contas fixas no schema v2 estruturado
-    transacoesFixasStorage.save(incomes, fixedBills);
-
-    // Recalcula projeção de 12 meses usando o Motor de Cálculo
-    const config = configuracoesStorage.load();
-    const mesInicial = config?.mesOnboarding || selectedMonth || new Date().toISOString().substring(0, 7);
-
-    const projecao = calcularProjecao({
-      mesInicial,
-      rendas: incomes,
-      contasFixas: fixedBills,
-    });
-
-    setMesesCalculados((prev) => {
-      const isDiff = JSON.stringify(prev) !== JSON.stringify(projecao.meses);
-      if (isDiff) {
-        mesesCalculadosStorage.save(projecao.meses);
-        return projecao.meses;
-      }
-      return prev;
-    });
-  }, [incomes, fixedBills, showOnboarding, selectedMonth]);
+  }, [setIncomes, setFixedBills]);
 
   // --- Sincronização automática com LocalStorage ---
-  // Anti-loop: cada useEffect verifica se o domain veio de uma atualização remota.
-  // Se sim, persiste localmente (correto) mas NÃO dispara dataVersion (que causaria re-push).
   useEffect(() => {
     try {
-      fixedBillsStorage.saveAll(fixedBills);
-      if (!showOnboarding) {
-        transacoesFixasStorage.save(incomes, fixedBills);
+      if (hasOnboarded) {
+        unifiedStorageRepository.saveTransacoesFixas(incomes, fixedBills);
       }
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
     if (incomingDomains.current.has("fixedBills")) {
       incomingDomains.current.delete("fixedBills");
-      return; // Não gera push de volta — veio do servidor
-    }
-    setDataVersion((v) => v + 1);
-  }, [fixedBills]);
-
-  useEffect(() => {
-    try {
-      incomesStorage.saveAll(incomes);
-      if (!showOnboarding) {
-        transacoesFixasStorage.save(incomes, fixedBills);
-      }
-    } catch (e: any) {
-      if (e.message === "STORAGE_FULL") setStorageError(true);
-    }
-    if (incomingDomains.current.has("incomes")) {
-      incomingDomains.current.delete("incomes");
       return;
     }
     setDataVersion((v) => v + 1);
-  }, [incomes]);
+  }, [fixedBills, incomes, hasOnboarded, incomingDomains]);
 
   useEffect(() => {
     try {
-      invoicesStorage.saveAll(invoices);
+      unifiedStorageRepository.saveAllInvoices(invoices);
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
@@ -382,11 +159,11 @@ export default function App() {
       return;
     }
     setDataVersion((v) => v + 1);
-  }, [invoices]);
+  }, [invoices, incomingDomains]);
 
   useEffect(() => {
     try {
-      plannedInstallmentsStorage.saveAll(plannedInstallments);
+      unifiedStorageRepository.saveAllPlannedInstallments(plannedInstallments);
     } catch (e: any) {
       if (e.message === "STORAGE_FULL") setStorageError(true);
     }
@@ -395,20 +172,7 @@ export default function App() {
       return;
     }
     setDataVersion((v) => v + 1);
-  }, [plannedInstallments]);
-
-  // ─── Snapshot atual do app para sincronização ────────────────────────────────
-  const currentAppData = useMemo(() => ({
-    fixedBills,
-    incomes,
-    invoices,
-    plannedInstallments,
-  }), [fixedBills, incomes, invoices, plannedInstallments]);
-
-  // ─── Callback: ao ativar o sync, faz push inicial de todos os domínios ───────
-  const handleSyncActivated = useCallback(async (_code: string) => {
-    await pushDomainsToServer(currentAppData);
-  }, [currentAppData]);
+  }, [plannedInstallments, incomingDomains]);
 
   // ─── Callback: ao receber dados do servidor, aplica apenas os domínios alterados ──
   //
@@ -459,8 +223,6 @@ export default function App() {
       if (backup.transacoes_fixas.rendas) setIncomes(backup.transacoes_fixas.rendas);
       if (backup.transacoes_fixas.contasFixas) setFixedBills(backup.transacoes_fixas.contasFixas);
     }
-    if (backup.meses_calculados) setMesesCalculados(backup.meses_calculados);
-    
     // Suporte legado se o usuário importar um backup antigo
     if (backup.fixedBills) setFixedBills(backup.fixedBills);
     if (backup.incomes) setIncomes(backup.incomes);
@@ -470,23 +232,23 @@ export default function App() {
 
   // Exportar Backup Completo (Schema v2)
   const handleExportBackup = () => {
-    const activeConfig = configuracoesStorage.load() || {
-      schemaVersion: 1,
-      mesOnboarding: new Date().toISOString().substring(0, 7),
-      concluidoEm: new Date().toISOString(),
-      onboardingCompleto: true
-    };
-
-    const schema: AppStorageSchema = {
-      configuracoes_usuario: activeConfig,
-      transacoes_fixas: {
-        rendas: incomes,
-        contasFixas: fixedBills
-      },
-      meses_calculados: mesesCalculados
-    };
-
-    exportarBackupDoApp(schema);
+    // Usa loadAppState do repositório legado para manter formato do backup v2
+    const legacyState = unifiedStorageRepository.loadAppState();
+    if (legacyState) {
+      exportarBackupDoApp(legacyState);
+    } else {
+      const activeConfig = unifiedStorageRepository.loadConfiguracoes() || {
+        schemaVersion: 1,
+        mesOnboarding: new Date().toISOString().substring(0, 7),
+        concluidoEm: new Date().toISOString(),
+        onboardingCompleto: true
+      };
+      exportarBackupDoApp({
+        configuracoes_usuario: activeConfig,
+        transacoes_fixas: { rendas: incomes, contasFixas: fixedBills },
+        meses_calculados: []
+      });
+    }
   };
 
   // Itens do Menu de Navegação
@@ -517,7 +279,7 @@ export default function App() {
 
       {/* ONBOARDING - Exibido apenas no primeiro acesso */}
       {showOnboarding && (
-        <Onboarding onComplete={handleOnboardingComplete} />
+        <Onboarding onComplete={handleCompleteOnboarding} />
       )}
       
       {/* HEADER DE NAVEGAÇÃO DE MESES */}
