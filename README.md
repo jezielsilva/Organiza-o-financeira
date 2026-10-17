@@ -1,143 +1,57 @@
-# Controle Financeiro Pessoal — Arquitetura & Decisões Técnicas
+# Controle Financeiro
 
-> Sistema de gestão financeira pessoal com Inteligência Artificial para parsing de faturas de cartão, projeção orçamentária de 12 meses e sincronização em tempo real.
+App web (PWA) de organização financeira pessoal. Ele lê a fatura do cartão em PDF, separa os lançamentos por cartão e por pessoa, e cruza tudo com as rendas e as contas fixas. O resultado é quanto sobra neste mês e nos próximos, e quando cada parcela termina.
 
----
+## Como rodar
 
-## 🏛️ Decisões de Arquitetura e Design System (ADR)
+```bash
+npm install
+npm run dev          # http://localhost:3000
+npm test             # testes unitários (Vitest)
+npm run lint         # checagem de tipos
+npm run build        # build de produção + servidor estático (dist/server.cjs)
+npm run test:e2e     # testes ponta a ponta (Playwright)
+```
 
-Este documento registra as principais decisões arquiteturais tomadas para garantir alta manutenibilidade, extensibilidade e resiliência na aplicação.
+O compartilhamento entre aparelhos usa o Firebase Realtime Database. Copie `.env.example` para `.env` e preencha as variáveis `VITE_FIREBASE_*`. Sem elas, o app funciona normalmente, só que sem compartilhamento.
 
-### 1. Aplicação RÍGIDA dos Princípios SOLID
-
-Com a evolução da base de código, aplicamos os princípios SOLID para resolver o acoplamento excessivo e a duplicação de lógica:
-
-- **Single Responsibility Principle (SRP):**
-  - **`invoiceLineParser.ts`**: Isola totalmente a lógica de parsing via Expressões Regulares de faturas PDF/Texto.
-  - **`reportCalculator.ts`**: Focado exclusivamente em agregações e consolidação de relatórios de projeção.
-  - **`calculationEngine.ts`**: Motor puro para projeção orçamentária de 12 meses (sem dependências de UI ou LocalStorage).
-  - **`financialHealth.ts`**: Avalia a saúde financeira utilizando o modelo de regra 50-30-20.
-  - **`useFinancialState.ts`**: Custom Hook responsável por isolar a gestão de estado e sincronização com o repositório local.
-
-- **Open/Closed Principle (OCP) & Dependency Inversion (DIP):**
-  - Definidos contratos estritos de interface em `src/core/domain/types.ts`:
-    - **`IStorageRepository`**: Abstração da camada de persistência. Permite substituir a implementação do LocalStorage sem alterar os hooks ou componentes de apresentação.
-    - **`ISyncProvider`**: Contrato para provedores de sincronização (ex: Firebase, WebSockets).
-    - **`IInvoiceParser`**: Interface para parsers de fatura (ex: `PdfJsInvoiceParser` no client-side ou microserviço Python no server-side).
-
-- **Liskov Substitution Principle (LSP) & Interface Segregation (ISP):**
-  - Interfaces desacopladas e pequenas que evitam que classes ou componentes dependam de métodos que não utilizam.
-
----
-
-### 2. Arquitetura Modular em Camadas (Enterprise Feature-Driven Layers)
-
-Para organizar o projeto pensando em escala corporativa, estruturamos a base de código separando **Camadas** (responsabilidade arquitetural) e **Módulos** (funcionalidade de negócio/domínio):
+## Estrutura
 
 ```
 src/
-├── core/                         # Núcleo Transversal Compartilhado
-│   ├── domain/
-│   │   └── types.ts              # Entidades puras e contratos SOLID
-│   ├── infrastructure/
-│   │   └── backupService.ts      # Serviços de infraestrutura (Backup/Restore)
-│   └── shared/
-│       └── formatters.ts         # Utilitários puros de moeda (BRL) e datas
-│
-├── application/                  # Camada de Aplicação (Casos de Uso)
-│   └── hooks/
-│       └── useFinancialState.ts  # Gerenciamento global de estado financeiro
-│
-├── modules/                      # Módulos por Domínio de Negócio
-│   ├── fixed-bills/              # Gestão de Rendas e Contas Fixas
-│   │   └── presentation/
-│   │       └── FixedBills.tsx
-│   ├── invoices/                 # Gestão de Faturas e Compras de Cartão
-│   │   └── presentation/
-│   │       ├── CardInvoices.tsx
-│   │       ├── InvoiceUploadZone.tsx
-│   │       └── PurchaseFormModal.tsx
-│   ├── projection/               # Motor de Cálculo e Relatórios de 12 Meses
-│   │   ├── application/
-│   │   │   └── reportCalculator.ts
-│   │   ├── domain/
-│   │   │   └── calculationEngine.ts
-│   │   └── presentation/
-│   │       ├── Dashboard.tsx
-│   │       ├── Reports.tsx
-│   │       └── PlannedInstallments.tsx
-│   ├── sync/                     # Sincronização em Tempo Real (Firebase)
-│   │   ├── application/
-│   │   │   └── useSyncEngine.ts
-│   │   └── presentation/
-│   │       ├── SyncManager.tsx
-│   │       └── SyncPage.tsx
-│   └── onboarding/               # Wizard de Primeiro Acesso
-│       └── presentation/
-│           └── Onboarding.tsx
-│
-├── services/                     # Implementações de serviços e persistência
-├── components/                   # Stubs de reexportação (Retrocompatibilidade)
-└── hooks/                        # Stubs de reexportação (Retrocompatibilidade)
+  domain/      Regras de negócio puras (sem React, sem storage) + testes
+    money.ts         dinheiro em centavos inteiros
+    month.ts         meses "AAAA-MM"
+    projection.ts    cálculo do mês, projeção, "o que está acabando"
+    categories.ts    categorização automática dos lançamentos
+    invoice/         leitura da fatura: layout → linhas → lançamentos
+  data/        Persistência e integrações
+    patch.ts         alterações como "caminho → valor"
+    persistence.ts   localStorage (estado, fila offline, preferências)
+    legacy.ts        migração dos formatos antigos do app
+    backup.ts        backup completo (v3) e importação de backups antigos
+    sync/            sincronização com o Firebase
+    pdf/             extração do texto do PDF (pdf.js, no navegador)
+  app/         Store central, ações (casos de uso), rotas
+  features/    Telas: dashboard, invoices, bills, plans, reports, settings, onboarding
+  ui/          Design system: botões, campos, folhas (dialog), toasts, cards
 ```
 
-> **Retrocompatibilidade:** Para evitar a quebra de imports antigos durante o refactoring, os diretórios `src/components/` e `src/hooks/` atuam como pontos de reexportação transparente para a nova estrutura modular em `src/modules/`.
+## Decisões importantes
 
----
+**Dinheiro em centavos.** Todos os valores são inteiros em centavos (`amountCents`). Isso elimina os erros de ponto flutuante nas somas. Os campos de valor usam a máscara de banco (só números), então a vírgula nunca é confundida com ponto.
 
-### 3. Estratégia de Testabilidade e Alta Confiança
+**Leitura da fatura.** O pdf.js extrai o texto de *todas* as páginas com a posição de cada trecho. O app detecta o layout em duas colunas e lê os blocos de cada portador (`NOME  530034******1234`), que continuam de uma coluna para a outra e de uma página para a outra. O mês da fatura vem da data de vencimento. No fim, a soma dos lançamentos é comparada com o total impresso, e o app avisa se não bater.
 
-Foi implementada uma arquitetura de testes em 4 níveis para garantir a resiliência do sistema:
+**Quem conta no orçamento.** Cada portador pode contar ou não. O titular da conta começa desligado, para o caso de o cartão principal ser de outra pessoa. Os adicionais começam ligados. Lançamentos avulsos podem ser marcados como "não é meu".
 
-1. **Testes Unitários (Vitest):**
-   - Cobertura completa do motor de cálculo (`calculationEngine.test.ts`).
-   - Validação do parser de faturas (`invoiceLineParser.test.ts`).
-   - Regras da saúde financeira (`financialHealth.test.ts`).
-2. **Testes de Integração (Vitest + Testing Library):**
-   - Persistência e tolerância a falhas de cota no LocalStorage (`storageService.test.ts`).
-   - Comportamento reativo dos Hooks (`useFinancialState.test.ts`).
-3. **Testes de API (Supertest):**
-   - Endpoints HTTP do servidor Express (`server.test.ts`).
-4. **Testes End-to-End (Playwright):**
-   - Fluxo completo do usuário do Onboarding até relatórios (`e2e/app.spec.ts`).
+**Projeção realista.** Para os meses sem fatura, o cartão previsto soma duas partes:
 
----
+- as parcelas que ainda caem naquele mês;
+- a média dos gastos à vista das últimas 3 faturas.
 
-## 🚀 Como Rodar o Projeto
+As compras planejadas também entram, nos meses em que caem.
 
-### Pré-requisitos
-- Node.js (v18+)
-- Python 3.x (necessário caso queira utilizar o parser local de faturas com `pdfplumber`)
+**Sincronização.** Os dados ficam em `sync_rooms/<código>/v3`, com um caminho por item (`bills/<id>`, `invoices/<id>/purchases/<id>`…). Cada edição é um patch enviado com `update()`, que grava só os caminhos alterados. Assim, duas pessoas editando coisas diferentes não se sobrescrevem. As alterações feitas offline ficam numa fila persistida e são enviadas quando a conexão volta. Na primeira vez que um aparelho entra em um código, os dados locais são somados aos da sala, sem apagar nada. Se a sala ainda estiver no formato antigo, ela é convertida automaticamente.
 
-### 1. Instalação de Dependências
-```bash
-npm install
-```
-
-### 2. Executar em Modo de Desenvolvimento
-```bash
-npm run dev
-```
-
-### 3. Scripts de Verificação e Testes
-```bash
-# Validação de Tipagem TypeScript (0 erros)
-npm run lint
-
-# Executar Testes Unitários, de Integração e de API
-npm test
-
-# Executar Testes em Modo Interativo (Watch)
-npm run test:watch
-
-# Executar Testes End-to-End no Navegador
-npm run test:e2e
-```
-
----
-
-## 🛡️ Segurança e Resiliência
-
-- **Execução Segura no Servidor:** Chamadas ao microserviço Python em `server.ts` utilizam `execFile` sem interpolação de shell, prevenindo riscos de injeção de comandos.
-- **Tolerância a Falhas de Storage:** Tratamento explícito de `QuotaExceededError` ao salvar dados pesados no LocalStorage.
-- **Sincronização Anti-Loop:** Mecanismo de timestamps por domínio e controle de eco (`incomingDomains`) para evitar loops infinitos em alterações sincronizadas via Firebase.
+**Backup.** O arquivo JSON leva tudo: rendas, contas, faturas com lançamentos e marcações, e compras planejadas. A importação também aceita os backups do formato antigo.

@@ -1,33 +1,35 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.describe("Fluxos End-to-End da Aplicação", () => {
+test.describe("Fluxos principais", () => {
   test.beforeEach(async ({ page }) => {
-    // Limpa o localStorage antes de cada teste E2E
     await page.goto("/");
     await page.evaluate(() => localStorage.clear());
     await page.reload();
   });
 
-  test("Deve exibir a tela de Onboarding no primeiro acesso", async ({ page }) => {
-    await page.goto("/");
-    // Verifica se os elementos do Onboarding ou Dashboard são exibidos
-    const appShell = page.locator("#main-app-shell");
-    await expect(appShell).toBeVisible();
+  test("onboarding cadastra renda e conta e mostra quanto sobra", async ({ page }) => {
+    await page.getByRole("button", { name: "Começar" }).click();
+    await page.getByLabel("Nome").fill("Salário");
+    await page.getByLabel("Valor por mês").fill("500000");
+    await page.getByRole("button", { name: "Próximo" }).click();
+    await page.getByLabel("Nome").fill("Aluguel");
+    await page.getByLabel("Valor por mês").fill("150000");
+    await page.getByRole("button", { name: "Concluir" }).click();
+
+    await expect(page.getByText("R$ 3.500,00").first()).toBeVisible();
   });
 
-  test("Deve permitir a navegação entre as abas principais", async ({ page }) => {
-    await page.goto("/");
+  test("navegação pelas rotas e botão voltar", async ({ page }) => {
+    await page.getByRole("button", { name: "Começar" }).click();
+    await page.getByRole("button", { name: "Próximo" }).click();
+    await page.getByRole("button", { name: "Concluir" }).click();
 
-    // Clica no item de Renda & Contas Fixas
-    const buttonFixas = page.getByRole("button", { name: /Renda & Contas Fixas/i });
-    if (await buttonFixas.isVisible()) {
-      await buttonFixas.click();
-    }
-
-    // Clica no item de Fatura do Cartão
-    const buttonCartao = page.getByRole("button", { name: /Fatura do Cartão/i });
-    if (await buttonCartao.isVisible()) {
-      await buttonCartao.click();
-    }
+    const nav = page.getByRole("navigation", { name: "Principal" }).first();
+    await nav.getByRole("link", { name: "Fatura" }).click();
+    await expect(page).toHaveURL(/#\/fatura/);
+    await nav.getByRole("link", { name: "Contas" }).click();
+    await expect(page).toHaveURL(/#\/contas/);
+    await page.goBack();
+    await expect(page).toHaveURL(/#\/fatura/);
   });
 });

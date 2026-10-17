@@ -1,68 +1,49 @@
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
-import {VitePWA} from 'vite-plugin-pwa';
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { readFileSync } from "fs";
+import { defineConfig } from "vitest/config";
+import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig(() => {
-  return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
-        manifest: {
-          name: 'Controle Financeiro Pessoal',
-          short_name: 'ControleFin',
-          description: 'Controle suas finanças pessoais com IA. Gerencie rendas, contas fixas e projete seu orçamento.',
-          theme_color: '#18181b',
-          background_color: '#fafafa',
-          display: 'standalone',
-          orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
-          id: '/',
-          icons: [
-            {
-              src: 'pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any'
-            },
-            {
-              src: 'pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable'
-            }
-          ]
-        }
-      })
-    ],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")) as { version: string };
+
+export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "pwa-192x192.png", "pwa-512x512.png"],
+      workbox: {
+        // O worker do pdf.js tem ~1 MB e precisa estar em cache para ler faturas offline.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        globPatterns: ["**/*.{js,mjs,css,html,png,ico,svg,woff2}"],
       },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-    // Configuração do Vitest
-    test: {
-      globals: true,
-      environment: 'jsdom',
-      exclude: ['**/node_modules/**', '**/e2e/**'],
-    },
-  };
+      manifest: {
+        name: "Controle Financeiro",
+        short_name: "Finanças",
+        description: "Leia a fatura do cartão, organize renda e contas fixas e veja quanto sobra nos próximos meses.",
+        lang: "pt-BR",
+        theme_color: "#0b0b0d",
+        background_color: "#0b0b0d",
+        display: "standalone",
+        orientation: "portrait",
+        start_url: "/",
+        scope: "/",
+        id: "/",
+        icons: [
+          { src: "pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+      },
+    }),
+  ],
+  test: {
+    globals: true,
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+  },
 });

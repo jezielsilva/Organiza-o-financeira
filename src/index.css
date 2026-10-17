@@ -1,16 +1,221 @@
 @import "tailwindcss";
 
-/* Correções de Stacking Context para iOS/Safari (PWA) */
+/*
+ * Design tokens — direção "Noite & Lima".
+ * Escuro é o padrão; o claro existe como opção em Ajustes.
+ * Contrastes de texto ≥ 4.5:1 (WCAG AA) nos dois temas.
+ */
+@theme inline {
+  --color-bg: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-surface-2: var(--app-surface-2);
+  --color-line: var(--app-line);
+  --color-fg: var(--app-fg);
+  --color-muted: var(--app-muted);
+  --color-accent: var(--app-accent);
+  --color-accent-fg: var(--app-accent-fg);
+  --color-accent-soft: var(--app-accent-soft);
+  --color-lime: #d4f36b;
+  --color-violet: #9b8afb;
+  --color-ember: #ff7a45;
+  --color-sun: #f6c26b;
+  --color-teal: #3cc7b6;
+  --color-ink: #0b0b0d;
+  --color-positive: var(--app-positive);
+  --color-positive-soft: var(--app-positive-soft);
+  --color-negative: var(--app-negative);
+  --color-negative-soft: var(--app-negative-soft);
+  --color-warning: var(--app-warning);
+  --color-warning-soft: var(--app-warning-soft);
+  --color-chart-1: var(--app-chart-1);
+  --color-chart-2: var(--app-chart-2);
+  --color-chart-3: var(--app-chart-3);
+  --color-chart-4: var(--app-chart-4);
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
 
-#main-app-shell {
+:root {
+  color-scheme: dark;
+  --app-bg: #0b0b0d;
+  --app-surface: #16161a;
+  --app-surface-2: #1e1e23;
+  --app-line: #2a2a31;
+  --app-fg: #f2f1ec;
+  --app-muted: #a3a2ab;
+  --app-accent: #d4f36b;
+  --app-accent-fg: #0b0b0d;
+  --app-accent-soft: #24300f;
+  --app-positive: #b6e36a;
+  --app-positive-soft: #1f2a10;
+  --app-negative: #ff8f73;
+  --app-negative-soft: #3a1a14;
+  --app-warning: #f6c26b;
+  --app-warning-soft: #3a2c10;
+  --app-chart-1: #d4f36b;
+  --app-chart-2: #ff7a45;
+  --app-chart-3: #9b8afb;
+  --app-chart-4: #8c8c96;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #f4f3ee;
+  --app-surface: #ffffff;
+  --app-surface-2: #ecebe4;
+  --app-line: #dedcd3;
+  --app-fg: #141416;
+  --app-muted: #5c5b62;
+  --app-accent: #4c6a00;
+  --app-accent-fg: #ffffff;
+  --app-accent-soft: #e6f2c2;
+  --app-positive: #3f6a00;
+  --app-positive-soft: #e3f1c8;
+  --app-negative: #b42318;
+  --app-negative-soft: #fde4e1;
+  --app-warning: #8a4b00;
+  --app-warning-soft: #fdf0d5;
+  --app-chart-1: #7aa300;
+  --app-chart-2: #e8622a;
+  --app-chart-3: #7b68ee;
+  --app-chart-4: #9a99a2;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    color-scheme: light;
+    --app-bg: #f4f3ee;
+    --app-surface: #ffffff;
+    --app-surface-2: #ecebe4;
+    --app-line: #dedcd3;
+    --app-fg: #141416;
+    --app-muted: #5c5b62;
+    --app-accent: #4c6a00;
+    --app-accent-fg: #ffffff;
+    --app-accent-soft: #e6f2c2;
+    --app-positive: #3f6a00;
+    --app-positive-soft: #e3f1c8;
+    --app-negative: #b42318;
+    --app-negative-soft: #fde4e1;
+    --app-warning: #8a4b00;
+    --app-warning-soft: #fdf0d5;
+    --app-chart-1: #7aa300;
+    --app-chart-2: #e8622a;
+    --app-chart-3: #7b68ee;
+    --app-chart-4: #9a99a2;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--app-bg);
+    color: var(--app-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  button,
+  [role="button"],
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* Valores monetários alinhados em colunas. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Brilho suave atrás do topo das telas (referência Crypto Wallet / Traverse). */
+.glow {
+  position: relative;
   isolation: isolate;
 }
-
-.ios-sync-modal {
-  /* Força renderização em camada de GPU no WebKit para sobrepor transformações de ancestrais */
-  transform: translate3d(0, 0, 0) !important;
-  -webkit-transform: translate3d(0, 0, 0) !important;
-  -webkit-overflow-scrolling: touch;
-  z-index: 99999 !important;
+.glow::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -140px -60px auto -60px;
+  height: 380px;
+  background:
+    radial-gradient(closest-side at 30% 40%, rgb(155 138 251 / 0.28), transparent 70%),
+    radial-gradient(closest-side at 85% 20%, rgb(255 122 69 / 0.18), transparent 70%);
+  pointer-events: none;
+}
+:root[data-theme="light"] .glow::before {
+  opacity: 0.5;
 }
 
+/* Cartão de crédito com degradê (referência Traverse). */
+.card-ember {
+  background: linear-gradient(140deg, #ff7a45 0%, #c2362b 52%, #4a1019 100%);
+  color: #ffffff;
+}
+
+/* Diálogos nativos (<dialog>): foco preso, Esc e fundo inerte de graça. */
+dialog.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 92dvh;
+  border-radius: 1.75rem 1.75rem 0 0;
+  padding: 0;
+  background: var(--app-surface);
+  color: var(--app-fg);
+  border: 1px solid var(--app-line);
+  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+dialog.sheet::backdrop {
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(3px);
+}
+@media (min-width: 640px) {
+  dialog.sheet {
+    margin: auto;
+    max-width: 32rem;
+    border-radius: 1.75rem;
+    animation-name: dialog-in;
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+@keyframes dialog-in {
+  from {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
