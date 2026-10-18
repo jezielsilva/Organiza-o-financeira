@@ -2,7 +2,8 @@
  * POST /api/invest — recomendação de aportes em FIIs que pagam todo mês.
  *
  * Regras de negócio ficam aqui (servidor), não no app:
- *  1. Busca cotação e dividendos dos últimos 12 meses na brapi.dev.
+ *  1. Busca cotação e dividendos dos últimos 12 meses na brapi.dev; se a brapi
+ *     não trouxer proventos, usa o DY (12M) publicado no Investidor10.
  *  2. Classifica cada fundo por como reage aos juros (CDI, IPCA, tijolo).
  *  3. Pontua por dividend yield e regularidade dos pagamentos mensais.
  *  4. Distribui o aporte cota a cota, mirando a alocação-alvo do perfil
@@ -54,6 +55,17 @@ interface BrapiQuote {
   dividendsData?: { cashDividends?: Array<{ paymentDate?: string; rate?: number }> };
 }
 
+/** Segundo motor: lê o "DY (12M)" da página pública do ativo no Investidor10. */
+async function investidor10Yield(ticker: string): Promise<number | null> {
+  const kind = /11$/.test(ticker) ? "fiis" : "acoes";
+  const response = await fetch(`https://investidor10.com.br/${kind}/${ticker.toLowerCase()}/`, {
+    headers: { "User-Agent": "Mozilla/5.0 (controle-financeiro)" },
+  });
+  if (!response.ok) return null;
+  const match = (await response.text()).match(/DY \(12M\)\s*:\s*([\d.,]+)%/);
+  return match ? Number(match[1].replace(/\./g, "").replace(",", ".")) / 100 : null;
+}
+
 const cache = new Map<string, { at: number; asset: Asset | null }>();
 const CACHE_MS = 30 * 60 * 1000;
 
@@ -71,11 +83,20 @@ async function fetchAsset(ticker: string, token: string): Promise<Asset | null> 
   const quote = json.results?.[0];
   if (!quote?.regularMarketPrice) return null;
 
-  const since = Date.now() - 365 * 24 * 60 * 60 * 1000;
-  const paid = quote.dividendsData?.cashDividends?.filter((d) => d.paymentDate && Date.parse(d.paymentDate) >= since && d.rate);
-  const dividends12mCents = paid ? Math.round(paid.reduce((sum, d) => sum + (d.rate ?? 0), 0) * 100) : null;
-  const monthsPaid = paid ? new Set(paid.map((d) => d.paymentDate!.slice(0, 7))).size : null;
+  // Só proventos já pagos: a brapi também lista os anunciados para datas futuras.
+  const now = Date.now();
+  const since = now - 365 * 24 * 60 * 60 * 1000;
+  const paid = quote.dividendsData?.cashDividends?.filter((d) => {
+    const at = d.paymentDate ? Date.parse(d.paymentDate) : NaN;
+    return at >= since && at <= now && d.rate;
+  });
   const priceCents = Math.round(quote.regularMarketPrice * 100);
+  let dividends12mCents = paid?.length ? Math.round(paid.reduce((sum, d) => sum + (d.rate ?? 0), 0) * 100) : null;
+  const monthsPaid = paid?.length ? new Set(paid.map((d) => d.paymentDate!.slice(0, 7))).size : null;
+  if (dividends12mCents === null) {
+    const dy = await investidor10Yield(ticker).catch(() => null);
+    if (dy !== null) dividends12mCents = Math.round(dy * priceCents);
+  }
   const dividendYield = dividends12mCents !== null ? dividends12mCents / priceCents : null;
   const info = UNIVERSE[ticker];
 
