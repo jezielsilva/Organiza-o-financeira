@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   ChartLine,
+  ChartPie,
   CircleCheck,
   FileUp,
   Link2,
@@ -130,7 +131,7 @@ function Hero({ summary }: { summary: MonthSummary }) {
 }
 
 const ACTIONS: Array<{ label: string; icon: ElementType; route: Route }> = [
-  { label: "Fatura", icon: FileUp, route: "fatura" },
+  { label: "Categorias", icon: ChartPie, route: "categorias" },
   { label: "Contas", icon: Plus, route: "contas" },
   { label: "Comprar?", icon: ShoppingBag, route: "planejar" },
   { label: "Metas", icon: Target, route: "metas" },

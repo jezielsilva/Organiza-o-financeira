@@ -15,6 +15,7 @@ import {
   Target,
   Wallet,
   Sprout,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
@@ -32,6 +33,7 @@ import GoalsPage from "./features/goals/GoalsPage";
 import ReliefPage from "./features/relief/ReliefPage";
 import RecapPage from "./features/recap/RecapPage";
 import SettingsPage from "./features/settings/SettingsPage";
+import InvestmentsPage from "./features/investments/InvestmentsPage";
 import Onboarding from "./features/onboarding/Onboarding";
 import { Alert } from "./ui/display";
 import { ConfirmProvider } from "./ui/Sheet";
@@ -45,8 +47,8 @@ const ReportsPage = lazy(() => import("./features/reports/ReportsPage"));
 const NAV: Array<{ route: Route; label: string; icon: LucideIcon; also?: Route[] }> = [
   { route: "inicio", label: "Início", icon: House, also: ["resumo"] },
   { route: "fatura", label: "Fatura", icon: CreditCard },
-  { route: "categorias", label: "Categorias", icon: ChartPie },
   { route: "planejar", label: "Planejar", icon: CalendarClock, also: ["metas"] },
+  { route: "investir", label: "Investir", icon: TrendingUp },
   { route: "relatorios", label: "Relatórios", icon: ChartColumn, also: ["alivio"] },
 ];
 
@@ -58,6 +60,7 @@ const SIDE: Array<{ route: Route; label: string; icon: LucideIcon }> = [
   { route: "contas", label: "Renda e contas", icon: Wallet },
   { route: "planejar", label: "Posso comprar?", icon: CalendarClock },
   { route: "metas", label: "Metas e reserva", icon: Target },
+  { route: "investir", label: "Investimentos", icon: TrendingUp },
   { route: "alivio", label: "Calendário de alívio", icon: Sprout },
   { route: "relatorios", label: "Projeção", icon: ChartColumn },
   { route: "ajustes", label: "Ajustes", icon: Settings },
@@ -70,13 +73,14 @@ const PAGE_TITLES: Record<Route, string> = {
   contas: "Renda e contas fixas",
   planejar: "Posso comprar?",
   metas: "Metas e reserva",
+  investir: "Investimentos",
   relatorios: "Projeção",
   alivio: "Calendário de alívio",
   resumo: "Resumo do mês",
   ajustes: "Ajustes",
 };
 
-const MONTHLESS: Route[] = ["ajustes", "metas", "resumo"];
+const MONTHLESS: Route[] = ["ajustes", "metas", "resumo", "investir"];
 
 function useTheme() {
   const theme = useAppState((s) => s.device.theme);
@@ -296,6 +300,7 @@ function Shell() {
             {route === "contas" && <BillsPage />}
             {route === "planejar" && <PlansPage />}
             {route === "metas" && <GoalsPage />}
+            {route === "investir" && <InvestmentsPage />}
             {route === "alivio" && <ReliefPage />}
             {route === "resumo" && <RecapPage />}
             {route === "relatorios" && (

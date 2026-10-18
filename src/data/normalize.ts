@@ -9,6 +9,7 @@ import {
   type AppData,
   type FixedBill,
   type Goal,
+  type Holding,
   type Income,
   type Invoice,
   type InvoiceCard,
@@ -137,6 +138,13 @@ export function normalizeGoal(r: Raw): Goal | null {
   };
 }
 
+export function normalizeHolding(r: Raw): Holding | null {
+  const quantity = int(r.quantity);
+  const ticker = str(r.ticker).trim().toUpperCase();
+  if (!r.id || !/^[A-Z0-9]{4,7}$/.test(ticker) || !quantity || quantity <= 0) return null;
+  return { id: str(r.id), ticker, quantity };
+}
+
 export function normalizeData(raw: unknown): AppData {
   const data = emptyData();
   if (!isObj(raw)) return data;
@@ -145,6 +153,7 @@ export function normalizeData(raw: unknown): AppData {
   data.invoices = toMap(entries(raw.invoices).map(normalizeInvoice));
   data.plans = toMap(entries(raw.plans).map(normalizePlan));
   data.goals = toMap(entries(raw.goals).map(normalizeGoal));
+  data.holdings = toMap(entries(raw.holdings).map(normalizeHolding));
   const settings = isObj(raw.settings) ? raw.settings : {};
   if (isObj(settings.holderRules)) {
     for (const [name, counted] of Object.entries(settings.holderRules)) {
@@ -166,6 +175,7 @@ export function isEmptyData(data: AppData): boolean {
     Object.keys(data.bills).length === 0 &&
     Object.keys(data.invoices).length === 0 &&
     Object.keys(data.plans).length === 0 &&
-    Object.keys(data.goals).length === 0
+    Object.keys(data.goals).length === 0 &&
+    Object.keys(data.holdings).length === 0
   );
 }

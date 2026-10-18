@@ -96,6 +96,14 @@ export interface Goal {
   createdAt: string;
 }
 
+/** Posição na carteira de investimentos (FII/ação da B3). */
+export interface Holding {
+  id: string;
+  /** Código B3 em maiúsculas, ex.: "MXRF11". */
+  ticker: string;
+  quantity: number;
+}
+
 /** Configurações compartilhadas entre quem usa o mesmo código. */
 export interface SharedSettings {
   /** Nome normalizado do portador → conta no orçamento? */
@@ -110,10 +118,11 @@ export interface AppData {
   invoices: Record<string, Invoice>;
   plans: Record<string, PlannedPurchase>;
   goals: Record<string, Goal>;
+  holdings: Record<string, Holding>;
   settings: SharedSettings;
 }
 
-export const COLLECTIONS = ["incomes", "bills", "invoices", "plans", "goals"] as const;
+export const COLLECTIONS = ["incomes", "bills", "invoices", "plans", "goals", "holdings"] as const;
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 export function emptyData(): AppData {
@@ -123,6 +132,7 @@ export function emptyData(): AppData {
     invoices: {},
     plans: {},
     goals: {},
+    holdings: {},
     settings: { holderRules: {}, categoryBudgets: {} },
   };
 }

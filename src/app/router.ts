@@ -11,6 +11,7 @@ export const ROUTES = [
   "categorias",
   "planejar",
   "metas",
+  "investir",
   "relatorios",
   "alivio",
   "contas",

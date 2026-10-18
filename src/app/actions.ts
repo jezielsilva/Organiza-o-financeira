@@ -4,7 +4,7 @@
  */
 
 import { normalizeHolder } from "../domain/invoice/statementParser";
-import type { FixedBill, Goal, Income, Invoice, PlannedPurchase, PlanStatus, Purchase } from "../domain/types";
+import type { FixedBill, Goal, Holding, Income, Invoice, PlannedPurchase, PlanStatus, Purchase } from "../domain/types";
 import { safeKey, type Patch } from "../data/patch";
 import { store } from "./store";
 
@@ -66,6 +66,9 @@ export const saveGoal = (goal: Goal) => commit({ [`goals/${goal.id}`]: goal });
 export const deleteGoal = (id: string) => commit({ [`goals/${id}`]: null });
 export const addToGoal = (goal: Goal, cents: number) =>
   commit({ [`goals/${goal.id}/savedCents`]: Math.max(0, goal.savedCents + cents) });
+
+export const saveHolding = (holding: Holding) => commit({ [`holdings/${holding.id}`]: holding });
+export const deleteHolding = (id: string) => commit({ [`holdings/${id}`]: null });
 
 export const setCategoryBudget = (category: string, cents: number | null) =>
   commit({ [`settings/categoryBudgets/${safeKey(category)}`]: cents && cents > 0 ? cents : null });

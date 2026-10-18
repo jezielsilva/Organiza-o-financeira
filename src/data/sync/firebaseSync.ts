@@ -93,6 +93,7 @@ export function unionData(primary: AppData, secondary: AppData): AppData {
     invoices: { ...secondary.invoices, ...primary.invoices },
     plans: { ...secondary.plans, ...primary.plans },
     goals: { ...secondary.goals, ...primary.goals },
+    holdings: { ...secondary.holdings, ...primary.holdings },
     settings: {
       holderRules: { ...secondary.settings.holderRules, ...primary.settings.holderRules },
       categoryBudgets: { ...secondary.settings.categoryBudgets, ...primary.settings.categoryBudgets },
