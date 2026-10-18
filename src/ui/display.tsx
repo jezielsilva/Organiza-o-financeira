@@ -77,7 +77,7 @@ export function BigMoney({
   centsClassName = "text-muted/70",
 }: {
   cents: Cents;
-  size?: "md" | "lg" | "xl";
+  size?: "md" | "lg" | "xl" | "hero";
   className?: string;
   centsClassName?: string;
 }) {
@@ -89,6 +89,7 @@ export function BigMoney({
     md: ["text-3xl", "text-xl"],
     lg: ["text-[2.6rem]", "text-2xl"],
     xl: ["text-5xl sm:text-6xl", "text-3xl"],
+    hero: ["text-6xl sm:text-7xl", "text-3xl"],
   }[size];
   return (
     <span className={cn("tabular font-display leading-none font-semibold tracking-tight whitespace-nowrap", className)}>

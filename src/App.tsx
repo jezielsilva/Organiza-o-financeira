@@ -275,7 +275,7 @@ function Shell() {
       >
         Pular para o conteúdo
       </a>
-      <div className="glow min-h-dvh overflow-x-clip">
+      <div className="min-h-dvh overflow-x-clip">
         <Header route={route} />
         <div className="mx-auto flex max-w-6xl gap-8 px-4 pt-2 pb-32 md:px-8 md:pb-12">
           <SideNav route={route} />

@@ -87,7 +87,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
   return (
     <form
       noValidate
-      className="glow space-y-5"
+      className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -220,12 +220,12 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
         <button
           type="button"
           onClick={() => setFirstMonth(sim.bestStart!.month)}
-          className="flex w-full items-start gap-3 rounded-[1.25rem] bg-violet/15 p-4 text-left text-[14px] leading-relaxed text-fg/90"
+          className="flex w-full items-start gap-3 rounded-[1.25rem] border border-line bg-surface p-4 text-left text-[14px] leading-relaxed text-fg/90"
         >
-          <Lightbulb className="mt-0.5 size-5 shrink-0 text-violet" aria-hidden />
+          <Lightbulb className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
           <span>
             <strong className="text-fg">Dica:</strong> começando em {formatMonthName(sim.bestStart.month).toLowerCase()}, o mês mais apertado
-            fica com {formatBRL(sim.bestStart.worstBalanceCents)}. <span className="font-semibold text-violet underline">Usar esse mês</span>
+            fica com {formatBRL(sim.bestStart.worstBalanceCents)}. <span className="font-semibold text-accent underline">Usar esse mês</span>
           </span>
         </button>
       )}

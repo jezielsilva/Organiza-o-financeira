@@ -67,7 +67,7 @@ function Donut({ rows, total }: { rows: CategoryShare[]; total: number }) {
 
 function BudgetRow({ status }: { status: BudgetStatus }) {
   const { category, spentCents, limitCents, ratio, state } = status;
-  const color = state === "over" ? "bg-ember" : state === "near" ? "bg-sun" : "bg-lime";
+  const color = state === "over" ? "bg-negative" : state === "near" ? "bg-warning" : "bg-fg/40";
   const label =
     state === "over"
       ? `${formatBRL(spentCents - limitCents)} acima`

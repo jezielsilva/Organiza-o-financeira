@@ -6,7 +6,6 @@ import {
   Link2,
   Plus,
   ShoppingBag,
-  Sparkles,
   Target,
 } from "lucide-react";
 import { useMemo, type ElementType } from "react";
@@ -18,7 +17,6 @@ import { goalEta, reliefCalendar } from "../../domain/insights";
 import { formatBRL, type Cents } from "../../domain/money";
 import { addMonths, formatDate, formatMonthName, formatMonthShort } from "../../domain/month";
 import {
-  countedPurchases,
   findPlanMatches,
   invoicesByMonth,
   planInstallmentCents,
@@ -106,23 +104,20 @@ function Hero({ summary }: { summary: MonthSummary }) {
   const positive = summary.balanceCents >= 0;
   const pct = summary.incomeCents > 0 ? Math.round((summary.balanceCents / summary.incomeCents) * 100) : null;
   return (
-    <section aria-labelledby="hero-title" className="space-y-4">
+    <section aria-labelledby="hero-title" className="space-y-5 pt-4 pb-2">
       <div className="flex items-center justify-between gap-3">
         <h2 id="hero-title" className="text-[15px] text-muted">
           {positive ? "Sobra" : "Falta"} em {formatMonthName(summary.month).toLowerCase()}
         </h2>
         {pct !== null && (
           <span
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-bold",
-              positive ? "bg-lime text-ink" : "bg-negative-soft text-negative",
-            )}
+            className={cn("tabular text-xs font-semibold", positive ? "text-muted" : "text-negative")}
           >
             {positive ? `${pct}% da renda` : "acima da renda"}
           </span>
         )}
       </div>
-      <BigMoney cents={summary.balanceCents} size="xl" className={positive ? "text-fg" : "text-negative"} />
+      <BigMoney cents={summary.balanceCents} size="hero" className={positive ? "text-fg" : "text-negative"} />
       {summary.incomeCents === 0 ? (
         <Button variant="secondary" icon={Plus} onClick={() => navigate("contas")}>
           Cadastrar renda
@@ -158,84 +153,60 @@ function QuickActions() {
   );
 }
 
-function CardTile({ summary }: { summary: MonthSummary }) {
-  const data = useAppState((s) => s.data);
-  const invoice = summary.card.invoiceId ? data.invoices[summary.card.invoiceId] : undefined;
-
-  if (summary.card.source === "none") {
-    return (
-      <a href="#/fatura" className="card-ember flex flex-col gap-3 rounded-3xl p-5 col-span-2">
-        <FileUp className="size-6" aria-hidden />
-        <span className="text-lg font-bold">Importe a fatura do cartão</span>
-        <span className="text-sm text-white/85">O app lê o PDF, separa por cartão e calcula as parcelas dos próximos meses.</span>
-      </a>
-    );
-  }
-
-  const last4 = invoice ? countedPurchases(invoice, data.settings).find((p) => p.cardLast4)?.cardLast4 : undefined;
-  const isReal = summary.card.source === "invoice";
+function Row({ href, label, value, hint }: { href: string; label: string; value: string; hint: string }) {
   return (
-    <a href="#/fatura" className="card-ember relative flex flex-col gap-2.5 overflow-hidden rounded-3xl p-5 col-span-2">
-      <span aria-hidden className="absolute -right-10 -bottom-16 size-48 rounded-full border-[28px] border-white/10" />
-      <span className="flex justify-between text-[13px] text-white/90">
-        <span>
-          {isReal ? invoice?.issuer : "Cartão"}
-          {isReal && invoice?.dueDate && ` · vence ${formatDate(invoice.dueDate).slice(0, 5)}`}
+    <li>
+      <a href={href} className="flex items-center gap-3 px-4 py-3.5 hover:bg-surface-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-fg">{label}</span>
+          <span className="block truncate text-[13px] text-muted">{hint}</span>
         </span>
-        {last4 && <span className="tabular">•••• {last4}</span>}
-      </span>
-      <span className="text-[13px] text-white/90">{isReal ? "Sua parte da fatura" : "Previsão do cartão (fatura não importada)"}</span>
-      <BigMoney cents={summary.card.totalCents} size="md" className="text-white" centsClassName="text-white/70" />
-      <span className="text-[13px] text-white/90">
-        {isReal && invoice
-          ? `de ${formatBRL(invoice.statementTotalCents)} no total`
-          : `${formatBRL(summary.card.installmentsCents)} em parcelas + ${formatBRL(summary.card.variableEstimateCents)} do dia a dia`}
-      </span>
-    </a>
+        <span className="tabular text-[15px] font-semibold text-fg">{value}</span>
+        <ArrowRight className="size-4 text-muted" aria-hidden />
+      </a>
+    </li>
   );
 }
 
-function ReliefTile() {
+function Overview({ summary }: { summary: MonthSummary }) {
   const data = useAppState((s) => s.data);
   const { month } = useMonth();
-  const next = useMemo(() => reliefCalendar(data, month, 12).find((r) => r.freedCents > 0), [data, month]);
-  return (
-    <a href="#/alivio" className="flex flex-col gap-1.5 rounded-3xl bg-lime p-4 text-ink">
-      <span className="text-xs font-bold">{next ? `Alívio em ${formatMonthName(addMonths(next.month, 1)).toLowerCase()}` : "Calendário de alívio"}</span>
-      <span className="font-display text-2xl font-bold">{next ? `+${formatBRL(next.freedCents).replace(/,\d\d$/, "")}` : "—"}</span>
-      <span className="text-xs font-semibold">
-        {next ? `${next.ending.length} parcela${next.ending.length > 1 ? "s" : ""} termina${next.ending.length > 1 ? "m" : ""} em ${formatMonthShort(next.month)}` : "Nenhuma parcela em aberto"}
-      </span>
-    </a>
-  );
-}
+  const relief = useMemo(() => reliefCalendar(data, month, 12).find((r) => r.freedCents > 0), [data, month]);
+  const reserve = Object.values(data.goals).find((g) => g.kind === "emergency");
+  const invoice = summary.card.invoiceId ? data.invoices[summary.card.invoiceId] : undefined;
+  const isReal = summary.card.source === "invoice";
+  const reservePct = reserve ? Math.min(100, Math.round((reserve.savedCents / reserve.targetCents) * 100)) : 0;
 
-function ReserveTile() {
-  const goals = useAppState((s) => s.data.goals);
-  const reserve = Object.values(goals).find((g) => g.kind === "emergency");
-  const pct = reserve ? Math.min(100, Math.round((reserve.savedCents / reserve.targetCents) * 100)) : 0;
-  const circumference = 2 * Math.PI * 21;
   return (
-    <a href="#/metas" className="flex items-center gap-3 rounded-3xl bg-violet p-4 text-ink">
-      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden className="shrink-0">
-        <circle cx="26" cy="26" r="21" fill="none" stroke="rgb(11 11 13 / 0.2)" strokeWidth="7" />
-        <circle
-          cx="26"
-          cy="26"
-          r="21"
-          fill="none"
-          stroke={pct > 0 ? "#0b0b0d" : "none"}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${(pct / 100) * circumference} ${circumference}`}
-          transform="rotate(-90 26 26)"
+    <ul className="divide-y divide-line overflow-hidden rounded-3xl border border-line bg-surface">
+      {summary.card.source === "none" ? (
+        <Row href="#/fatura" label="Importar fatura" value="PDF" hint="Separa por cartão e calcula as parcelas futuras" />
+      ) : (
+        <Row
+          href="#/fatura"
+          label={isReal ? `Cartão${invoice?.issuer ? ` · ${invoice.issuer}` : ""}` : "Cartão (previsão)"}
+          value={formatBRL(summary.card.totalCents)}
+          hint={
+            isReal && invoice
+              ? `${invoice.dueDate ? `vence ${formatDate(invoice.dueDate).slice(0, 5)} · ` : ""}de ${formatBRL(invoice.statementTotalCents)} no total`
+              : `${formatBRL(summary.card.installmentsCents)} em parcelas + dia a dia`
+          }
         />
-      </svg>
-      <span className="flex flex-col">
-        <span className="text-xs font-bold">Reserva</span>
-        <span className="font-display text-xl font-bold">{reserve ? `${pct}%` : "Criar"}</span>
-      </span>
-    </a>
+      )}
+      <Row
+        href="#/alivio"
+        label="Próximo alívio"
+        value={relief ? `+${formatBRL(relief.freedCents).replace(/,\d\d$/, "")}` : "—"}
+        hint={relief ? `A partir de ${formatMonthName(addMonths(relief.month, 1)).toLowerCase()}` : "Nenhuma parcela em aberto"}
+      />
+      <Row
+        href="#/metas"
+        label="Reserva de emergência"
+        value={reserve ? `${reservePct}%` : "Criar"}
+        hint={reserve ? `${formatBRL(reserve.savedCents)} de ${formatBRL(reserve.targetCents)}` : "Sugestão: 6 meses do seu custo"}
+      />
+      <Row href="#/resumo" label={`Resumo de ${formatMonthName(month).toLowerCase()}`} value="" hint="Onde mais gastou e parcelas que acabaram" />
+    </ul>
   );
 }
 
@@ -247,9 +218,7 @@ function Insight({ next }: { next: MonthSummary }) {
   const eta = reserve ? goalEta(reserve, month) : null;
   return (
     <Card className="flex gap-3 p-4 sm:p-5">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-        <ChartLine className="size-5" aria-hidden />
-      </span>
+      <ChartLine className="mt-1 size-5 shrink-0 text-muted" aria-hidden />
       <p className="text-[15px] leading-relaxed text-fg/80">
         <strong className="text-fg">
           {formatMonthName(next.month)} {next.balanceCents >= 0 ? "sobra" : "falta"} {formatBRL(Math.abs(next.balanceCents))}.
@@ -272,14 +241,14 @@ function PlanMatches() {
   const matches = findPlanMatches(invoice, Object.values(data.plans));
   if (matches.length === 0) return null;
   return (
-    <Card className="border-violet/50">
+    <Card>
       <SectionTitle title="Essas compras planejadas já vieram na fatura?" description="Confirme para não contar o mesmo gasto duas vezes." />
       <ul className="space-y-2">
         {matches.map(({ plan, purchase }) => (
           <li key={plan.id} className="flex flex-col gap-3 rounded-2xl bg-surface-2 p-3 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1 text-[15px]">
               <p className="font-semibold text-fg">
-                <Link2 className="mr-1 inline size-4 text-violet" aria-hidden />
+                <Link2 className="mr-1 inline size-4 text-muted" aria-hidden />
                 {plan.description} · {formatBRL(planInstallmentCents(plan, 1))}/mês
               </p>
               <p className="text-sm text-muted">
@@ -312,17 +281,12 @@ function NextMonths({ months }: { months: MonthSummary[] }) {
   const { setMonth } = useMonth();
   const maxAbs = Math.max(...months.map((m) => Math.abs(m.balanceCents)), 1);
   return (
-    <Card>
-      <SectionTitle
-        title="Próximos meses"
-        description="Quanto deve sobrar em cada mês."
-        action={
-          <a href="#/relatorios" className="text-sm font-semibold text-accent">
-            Projeção
-          </a>
-        }
-      />
-      <ul className="space-y-1">
+    <details className="group rounded-3xl border border-line bg-surface p-5 sm:p-6">
+      <summary className="flex items-center justify-between text-[15px] font-bold text-fg marker:content-none">
+        Próximos meses
+        <ArrowRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
+      </summary>
+      <ul className="mt-4 space-y-1">
         {months.map((m) => {
           const positive = m.balanceCents >= 0;
           return (
@@ -336,7 +300,7 @@ function NextMonths({ months }: { months: MonthSummary[] }) {
                 <span className="text-[15px] font-semibold capitalize text-fg">{formatMonthShort(m.month)}</span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
                   <span
-                    className={cn("block h-full rounded-full", positive ? "bg-lime" : "bg-negative")}
+                    className={cn("block h-full rounded-full", positive ? "bg-fg/40" : "bg-negative")}
                     style={{ width: `${(Math.abs(m.balanceCents) / maxAbs) * 100}%` }}
                   />
                 </span>
@@ -349,7 +313,10 @@ function NextMonths({ months }: { months: MonthSummary[] }) {
           );
         })}
       </ul>
-    </Card>
+      <a href="#/relatorios" className="mt-3 inline-block text-sm font-semibold text-accent">
+        Ver projeção completa
+      </a>
+    </details>
   );
 }
 
@@ -360,29 +327,11 @@ export default function Dashboard() {
   const next = useMemo(() => projectMonths(data, addMonths(month, 1), 6), [data, month]);
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
-        <div className="space-y-5">
-          <Hero summary={summary} />
-          <Explanation summary={summary} />
-          <QuickActions />
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 self-start">
-          <CardTile summary={summary} />
-          <ReliefTile />
-          <ReserveTile />
-          <a href="#/resumo" className="col-span-2 flex items-center gap-3 rounded-3xl border border-line bg-surface p-4 hover:bg-surface-2">
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-ember/15 text-ember">
-              <Sparkles className="size-5" aria-hidden />
-            </span>
-            <span className="flex-1">
-              <span className="block text-[15px] font-bold text-fg">Resumo de {formatMonthName(month).toLowerCase()}</span>
-              <span className="block text-sm text-muted">Onde mais gastou, corridas, delivery e parcelas que acabaram</span>
-            </span>
-            <ArrowRight className="size-5 text-muted" aria-hidden />
-          </a>
-        </div>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-5">
+      <Hero summary={summary} />
+      <Explanation summary={summary} />
+      <QuickActions />
+      <Overview summary={summary} />
       <Insight next={next[0]} />
       <PlanMatches />
       <NextMonths months={next} />

@@ -71,7 +71,7 @@ export default function ReliefPage() {
                 aria-hidden
                 className={cn(
                   "absolute top-1 -left-[1.95rem] size-3.5 rounded-full border-[3px] border-bg",
-                  index === 0 ? "bg-lime" : index === 1 ? "bg-violet" : "bg-line",
+                  index === 0 ? "bg-lime" : index === 1 ? "bg-muted" : "bg-line",
                 )}
               />
               <div className="flex items-baseline justify-between gap-3 text-[15px]">

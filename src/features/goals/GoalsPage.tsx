@@ -198,13 +198,13 @@ export default function GoalsPage() {
       </div>
 
       {reserve ? (
-        <section className="space-y-4 rounded-[1.75rem] bg-violet p-5 text-ink" aria-label="Reserva de emergência">
+        <section className="space-y-4 rounded-[1.75rem] border border-line bg-surface p-5 text-fg" aria-label="Reserva de emergência">
           <div className="flex items-center justify-between gap-2">
-            <span className="rounded-full bg-ink/10 px-3 py-1 text-xs font-bold tracking-wide">RESERVA DE EMERGÊNCIA</span>
+            <span className="rounded-full bg-surface-2 px-3 py-1 text-xs font-bold tracking-wide text-muted">RESERVA DE EMERGÊNCIA</span>
           </div>
           <div className="flex items-center gap-5">
             <div className="relative">
-              <Ring pct={pctOf(reserve)} track="rgb(11 11 13 / 0.15)" color="#0b0b0d" />
+              <Ring pct={pctOf(reserve)} track="var(--app-surface-2)" color="var(--app-accent)" />
               <span className="font-display absolute inset-0 flex items-center justify-center text-3xl font-bold">{pctOf(reserve)}%</span>
             </div>
             <div className="space-y-1">
@@ -220,13 +220,13 @@ export default function GoalsPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setDepositing(reserve)} className="h-11 rounded-full bg-ink text-[14px] font-bold text-white">
+            <button type="button" onClick={() => setDepositing(reserve)} className="h-11 rounded-full bg-accent text-[14px] font-bold text-accent-fg">
               Guardar agora
             </button>
             <button
               type="button"
               onClick={() => setEditing({ goal: reserve, kind: "emergency" })}
-              className="h-11 rounded-full border-[1.5px] border-ink text-[14px] font-bold text-ink"
+              className="h-11 rounded-full border border-line text-[14px] font-bold text-fg hover:bg-surface-2"
             >
               Ajustar meta
             </button>
@@ -236,7 +236,7 @@ export default function GoalsPage() {
         <button
           type="button"
           onClick={() => setEditing({ goal: null, kind: "emergency" })}
-          className="flex w-full items-center gap-4 rounded-[1.75rem] bg-violet p-5 text-left text-ink"
+          className="flex w-full items-center gap-4 rounded-[1.75rem] border border-dashed border-line bg-surface p-5 text-left text-fg hover:bg-surface-2"
         >
           <ShieldCheck className="size-9 shrink-0" aria-hidden />
           <span>
@@ -254,15 +254,15 @@ export default function GoalsPage() {
             const highlight = i === 0;
             return (
               <li key={g.id}>
-                <div className={cn("flex h-full flex-col gap-2.5 rounded-3xl p-4", highlight ? "bg-lime text-ink" : "border border-line bg-surface")}>
+                <div className={cn("flex h-full flex-col gap-2.5 rounded-3xl p-4", "border border-line bg-surface")}>
                   <button type="button" onClick={() => setEditing({ goal: g, kind: "goal" })} className="text-left text-[13px] font-bold">
                     {g.name}
                   </button>
                   <span className="font-display text-2xl font-bold">{pct}%</span>
-                  <span className={cn("h-2 overflow-hidden rounded-full", highlight ? "bg-ink/15" : "bg-surface-2")} aria-hidden>
-                    <span className={cn("block h-full rounded-full", highlight ? "bg-ink" : "bg-ember")} style={{ width: `${Math.min(100, pct)}%` }} />
+                  <span className={cn("h-2 overflow-hidden rounded-full", "bg-surface-2")} aria-hidden>
+                    <span className={cn("block h-full rounded-full", highlight ? "bg-accent" : "bg-fg/40")} style={{ width: `${Math.min(100, pct)}%` }} />
                   </span>
-                  <span className={cn("text-xs font-semibold", !highlight && "text-muted")}>
+                  <span className={cn("text-xs font-semibold", "text-muted")}>
                     {formatBRL(g.savedCents)} de {formatBRL(g.targetCents)}
                     {eta && g.savedCents < g.targetCents && ` · ${formatMonthShort(eta)}`}
                   </span>
@@ -271,7 +271,7 @@ export default function GoalsPage() {
                     onClick={() => setDepositing(g)}
                     className={cn(
                       "mt-auto h-10 rounded-full text-[13px] font-bold",
-                      highlight ? "bg-ink text-white" : "bg-surface-2 text-fg",
+                      "bg-surface-2 text-fg",
                     )}
                   >
                     Guardar

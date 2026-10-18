@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — direção "Noite & Lima".
+ * Design tokens — direção "Foco": um destaque só (lima), resto em neutros.
+ * Verde/vermelho apenas para valores; gráficos em tons de cinza.
  * Escuro é o padrão; o claro existe como opção em Ajustes.
  * Contrastes de texto ≥ 4.5:1 (WCAG AA) nos dois temas.
  */
@@ -16,10 +17,11 @@
   --color-accent-fg: var(--app-accent-fg);
   --color-accent-soft: var(--app-accent-soft);
   --color-lime: #d4f36b;
-  --color-violet: #9b8afb;
-  --color-ember: #ff7a45;
-  --color-sun: #f6c26b;
-  --color-teal: #3cc7b6;
+  /* Apelidos legados: a paleta agora tem um único destaque (lima). */
+  --color-violet: var(--app-chart-3);
+  --color-ember: var(--app-negative);
+  --color-sun: var(--app-warning);
+  --color-teal: var(--app-muted);
   --color-ink: #0b0b0d;
   --color-positive: var(--app-positive);
   --color-positive-soft: var(--app-positive-soft);
@@ -32,7 +34,7 @@
   --color-chart-3: var(--app-chart-3);
   --color-chart-4: var(--app-chart-4);
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Space Grotesk", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "JetBrains Mono", ui-monospace, ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -53,9 +55,9 @@
   --app-warning: #f6c26b;
   --app-warning-soft: #3a2c10;
   --app-chart-1: #d4f36b;
-  --app-chart-2: #ff7a45;
-  --app-chart-3: #9b8afb;
-  --app-chart-4: #8c8c96;
+  --app-chart-2: #c9c8cf;
+  --app-chart-3: #7a7982;
+  --app-chart-4: #3e3e46;
 }
 
 :root[data-theme="light"] {
@@ -76,9 +78,9 @@
   --app-warning: #8a4b00;
   --app-warning-soft: #fdf0d5;
   --app-chart-1: #7aa300;
-  --app-chart-2: #e8622a;
-  --app-chart-3: #7b68ee;
-  --app-chart-4: #9a99a2;
+  --app-chart-2: #3e3e46;
+  --app-chart-3: #8a8992;
+  --app-chart-4: #c9c8cf;
 }
 
 @media (prefers-color-scheme: light) {
@@ -100,9 +102,9 @@
     --app-warning: #8a4b00;
     --app-warning-soft: #fdf0d5;
     --app-chart-1: #7aa300;
-    --app-chart-2: #e8622a;
-    --app-chart-3: #7b68ee;
-    --app-chart-4: #9a99a2;
+    --app-chart-2: #3e3e46;
+    --app-chart-3: #8a8992;
+    --app-chart-4: #c9c8cf;
   }
 }
 
@@ -135,7 +137,9 @@
 
 /* Valores monetários alinhados em colunas. */
 .tabular {
+  font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .pb-safe {
@@ -145,29 +149,11 @@
   padding-top: env(safe-area-inset-top);
 }
 
-/* Brilho suave atrás do topo das telas (referência Crypto Wallet / Traverse). */
-.glow {
-  position: relative;
-  isolation: isolate;
-}
-.glow::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -140px -60px auto -60px;
-  height: 380px;
-  background:
-    radial-gradient(closest-side at 30% 40%, rgb(155 138 251 / 0.28), transparent 70%),
-    radial-gradient(closest-side at 85% 20%, rgb(255 122 69 / 0.18), transparent 70%);
-  pointer-events: none;
-}
-:root[data-theme="light"] .glow::before {
-  opacity: 0.5;
-}
 
-/* Cartão de crédito com degradê (referência Traverse). */
+/* Cartão de crédito: grafite neutro nos dois temas. */
 .card-ember {
-  background: linear-gradient(140deg, #ff7a45 0%, #c2362b 52%, #4a1019 100%);
+  background: linear-gradient(160deg, #26262c 0%, #141418 100%);
+  border: 1px solid #2f2f36;
   color: #ffffff;
 }
 
