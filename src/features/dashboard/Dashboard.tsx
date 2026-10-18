@@ -3,7 +3,6 @@ import {
   ChartLine,
   ChartPie,
   CircleCheck,
-  FileUp,
   Link2,
   Plus,
   ShoppingBag,
