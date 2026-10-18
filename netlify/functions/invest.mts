@@ -66,6 +66,8 @@ async function investidor10Yield(ticker: string): Promise<number | null> {
   return match ? Number(match[1].replace(/\./g, "").replace(",", ".")) / 100 : null;
 }
 
+let lastError: string | null = null;
+
 const cache = new Map<string, { at: number; asset: Asset | null }>();
 const CACHE_MS = 30 * 60 * 1000;
 
@@ -73,13 +75,16 @@ async function fetchAsset(ticker: string, token: string): Promise<Asset | null> 
   const hit = cache.get(ticker);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.asset;
 
-  const url = `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?dividends=true&token=${encodeURIComponent(token)}`;
-  const response = await fetch(url);
+  const base = `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?token=${encodeURIComponent(token)}`;
+  // O plano grátis pode recusar o módulo de dividendos: cai para só a cotação
+  // e o DY vem do Investidor10.
+  let response = await fetch(`${base}&dividends=true`);
+  if (!response.ok) response = await fetch(base);
+  const json = (await response.json().catch(() => ({}))) as { results?: BrapiQuote[]; message?: string };
   if (!response.ok) {
-    cache.set(ticker, { at: Date.now(), asset: null });
+    lastError = `brapi (${response.status}): ${json.message ?? "erro desconhecido"}`;
     return null;
   }
-  const json = (await response.json()) as { results?: BrapiQuote[] };
   const quote = json.results?.[0];
   if (!quote?.regularMarketPrice) return null;
 
@@ -191,6 +196,9 @@ export default async (request: Request): Promise<Response> => {
   const assets = (await Promise.all(tickers.map((t) => fetchAsset(t, token).catch(() => null)))).filter(
     (a): a is Asset => a !== null,
   );
+  if (assets.length === 0) {
+    return Response.json({ error: lastError ?? "Nenhuma cotação disponível agora." }, { status: 502 });
+  }
   const byTicker = new Map(assets.map((a) => [a.ticker, a]));
 
   const portfolio = [...positions].map(([ticker, quantity]) => {
