@@ -192,6 +192,7 @@ export default async (request: Request): Promise<Response> => {
   }
   const budgetCents = Math.max(0, Math.min(10_000_000, Math.round(Number(body.budgetCents) || 0)));
 
+  lastError = null;
   const tickers = [...new Set([...positions.keys(), ...Object.keys(UNIVERSE)])];
   const assets = (await Promise.all(tickers.map((t) => fetchAsset(t, token).catch(() => null)))).filter(
     (a): a is Asset => a !== null,
