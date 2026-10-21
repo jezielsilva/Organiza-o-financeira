@@ -110,6 +110,8 @@ export interface SharedSettings {
   holderRules: Record<string, boolean>;
   /** Limite mensal por categoria de gasto do cartão. */
   categoryBudgets: Record<string, Cents>;
+  /** Meta de renda passiva mensal (investimentos). */
+  investGoalCents?: Cents;
 }
 
 export interface AppData {

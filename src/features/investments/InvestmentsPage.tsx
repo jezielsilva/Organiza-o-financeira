@@ -1,8 +1,8 @@
-import { CircleAlert, Plus, RefreshCw, Sprout, Trash2, TrendingUp } from "lucide-react";
+import { CircleAlert, Flag, Lightbulb, Plus, RefreshCw, Sprout, Trash2, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { deleteHolding, saveHolding, undo } from "../../app/actions";
+import { deleteHolding, saveHolding, setInvestGoal, undo } from "../../app/actions";
 import { useAppState } from "../../app/store";
-import { fetchInvestReport, type InvestReport } from "../../data/investApi";
+import { fetchInvestReport, type InvestPick, type InvestReport } from "../../data/investApi";
 import { formatBRL } from "../../domain/money";
 import { newId, type Holding } from "../../domain/types";
 import { Button, IconButton } from "../../ui/Button";
@@ -19,6 +19,24 @@ const STARTER: Array<Pick<Holding, "ticker" | "quantity">> = [
 ];
 
 const pct = (v: number | null) => (v === null ? "—" : `${(v * 100).toFixed(1)}%`);
+
+function PickList({ picks }: { picks: InvestPick[] }) {
+  return (
+    <ul className="divide-y divide-line">
+      {picks.map((p) => (
+        <li key={p.ticker} className="py-3">
+          <p className="flex items-baseline justify-between gap-3 text-[15px] font-semibold text-fg">
+            <span>
+              {p.quantity}× {p.ticker}
+            </span>
+            <span className="tabular">{formatBRL(p.costCents)}</span>
+          </p>
+          <p className="text-[13px] text-muted">{p.reason}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function HoldingSheet({ open, onClose, holding }: { open: boolean; onClose: () => void; holding: Holding | null }) {
   const [ticker, setTicker] = useState("");
@@ -65,7 +83,9 @@ export default function InvestmentsPage() {
   const holdingsMap = useAppState((s) => s.data.holdings);
   const holdings = useMemo(() => Object.values(holdingsMap).sort((a, b) => a.ticker.localeCompare(b.ticker)), [holdingsMap]);
   const toast = useToast();
+  const savedGoal = useAppState((s) => s.data.settings.investGoalCents ?? null);
   const [budget, setBudget] = useState<number | null>(null);
+  const [goal, setGoal] = useState<number | null>(savedGoal);
   const [report, setReport] = useState<InvestReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -73,14 +93,14 @@ export default function InvestmentsPage() {
   const abort = useRef<AbortController>(null);
 
   const load = useCallback(
-    async (budgetCents: number) => {
+    async (budgetCents: number, goalCents: number) => {
       abort.current?.abort();
       const controller = new AbortController();
       abort.current = controller;
       setLoading(true);
       setError(undefined);
       try {
-        setReport(await fetchInvestReport(holdings, budgetCents, controller.signal));
+        setReport(await fetchInvestReport(holdings, budgetCents, goalCents, controller.signal));
       } catch (e) {
         if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -92,7 +112,7 @@ export default function InvestmentsPage() {
 
   // Pesquisa a cada vez que a tela é aberta (e quando a carteira muda).
   useEffect(() => {
-    void load(budget ?? 0);
+    void load(budget ?? 0, goal ?? 0);
     return () => abort.current?.abort();
   }, [load]);
 
@@ -117,7 +137,7 @@ export default function InvestmentsPage() {
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            void load(budget ?? 0);
+            void load(budget ?? 0, goal ?? 0);
           }}
         >
           <MoneyInput value={budget} onChange={setBudget} aria-label="Valor do aporte" />
@@ -127,31 +147,68 @@ export default function InvestmentsPage() {
         </form>
 
         {report && report.picks.length > 0 && (
-          <ul className="mt-4 divide-y divide-line">
-            {report.picks.map((p) => (
-              <li key={p.ticker} className="py-3">
-                <p className="flex items-baseline justify-between gap-3 text-[15px] font-semibold text-fg">
-                  <span>
-                    {p.quantity}× {p.ticker}
-                  </span>
-                  <span className="tabular">{formatBRL(p.costCents)}</span>
-                </p>
-                <p className="text-[13px] text-muted">{p.reason}</p>
-              </li>
-            ))}
-            <li className="tabular flex justify-between pt-3 text-sm text-muted">
+          <div className="mt-4">
+            <PickList picks={report.picks} />
+            <p className="tabular flex justify-between border-t border-line pt-3 text-sm text-muted">
               <span>Sobra do aporte</span>
               <span>{formatBRL(report.leftoverCents)}</span>
-            </li>
-          </ul>
+            </p>
+          </div>
         )}
         {report && (budget ?? 0) > 0 && report.picks.length === 0 && !loading && (
           <p className="mt-4 text-sm text-muted">O valor não cobre uma cota dos fundos recomendados. Junte para o próximo mês.</p>
         )}
       </Card>
 
+      <Card>
+        <SectionTitle
+          title="Meta de renda passiva"
+          description="Quanto quer receber por mês. O simulador diz o que comprar, e quantas cotas, dentro do seu perfil."
+        />
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setInvestGoal(goal);
+            void load(budget ?? 0, goal ?? 0);
+          }}
+        >
+          <MoneyInput value={goal} onChange={setGoal} aria-label="Meta de renda mensal" />
+          <Button type="submit" icon={Flag} disabled={loading || !goal} className="h-12 shrink-0">
+            Simular
+          </Button>
+        </form>
+
+        {report?.simulation && (
+          <div className="mt-4 space-y-3">
+            {report.simulation.picks.length === 0 ? (
+              <p className="text-sm text-positive">Sua carteira já rende {formatBRL(report.totals.monthlyIncomeCents)}/mês: meta atingida.</p>
+            ) : (
+              <>
+                <div className="rounded-2xl bg-surface-2 p-4">
+                  <p className="text-[13px] text-muted">Investimento necessário</p>
+                  <BigMoney cents={report.simulation.costCents} size="md" />
+                  <p className="tabular mt-2 text-[13px] text-muted">
+                    Renda estimada depois: {formatBRL(report.simulation.monthlyIncomeCents)}/mês
+                    {report.simulation.monthsAtBudget !== null &&
+                      ` · ~${report.simulation.monthsAtBudget} ${report.simulation.monthsAtBudget === 1 ? "mês" : "meses"} aportando ${formatBRL(budget ?? 0)}`}
+                  </p>
+                  {!report.simulation.reached && (
+                    <p className="mt-2 text-[13px] text-warning">Sem dados de dividendos suficientes para chegar exatamente à meta.</p>
+                  )}
+                </div>
+                <PickList picks={report.simulation.picks} />
+                {report.simulation.monthsAtBudget === null && (
+                  <p className="text-[13px] text-muted">Preencha o aporte mensal acima para ver em quanto tempo chega lá.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </Card>
+
       {error && (
-        <Alert tone="negative" icon={CircleAlert} title="Não deu para pesquisar agora" action={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => void load(budget ?? 0)}>Tentar de novo</Button>}>
+        <Alert tone="negative" icon={CircleAlert} title="Não deu para pesquisar agora" action={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => void load(budget ?? 0, goal ?? 0)}>Tentar de novo</Button>}>
           {error}
         </Alert>
       )}
@@ -228,6 +285,34 @@ export default function InvestmentsPage() {
                 <p className="text-[13px] text-muted">
                   {formatBRL(r.priceCents)}/cota{r.monthsPaid !== null ? ` · pagou em ${r.monthsPaid} dos últimos 12 meses` : ""} · {r.note}
                 </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {report && report.ideas.length > 0 && (
+        <details className="group rounded-3xl border border-line bg-surface p-5 sm:p-6">
+          <summary className="flex items-center gap-2 text-[15px] font-bold text-fg marker:content-none">
+            <Lightbulb className="size-4 text-muted" aria-hidden />
+            Ideias fora do seu padrão
+          </summary>
+          <p className="mt-2 text-[13px] text-muted">
+            Pagam todo mês e pagam bem, mas com risco maior que a sua carteira. Não entram nas recomendações acima.
+          </p>
+          <ul className="mt-3 divide-y divide-line">
+            {report.ideas.map((i) => (
+              <li key={i.ticker} className="py-3">
+                <p className="tabular flex justify-between gap-3 text-[15px] font-semibold text-fg">
+                  <span>
+                    {i.ticker} <span className="font-normal text-muted">· {i.kind}</span>
+                  </span>
+                  <span>DY {pct(i.dividendYield)}</span>
+                </p>
+                <p className="text-[13px] text-muted">
+                  {formatBRL(i.priceCents)}/cota · {i.note}
+                </p>
+                <p className="text-[13px] text-warning">Risco: {i.risk}</p>
               </li>
             ))}
           </ul>

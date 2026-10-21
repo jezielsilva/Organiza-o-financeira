@@ -97,6 +97,7 @@ export function unionData(primary: AppData, secondary: AppData): AppData {
     settings: {
       holderRules: { ...secondary.settings.holderRules, ...primary.settings.holderRules },
       categoryBudgets: { ...secondary.settings.categoryBudgets, ...primary.settings.categoryBudgets },
+      investGoalCents: primary.settings.investGoalCents ?? secondary.settings.investGoalCents,
     },
   };
 }

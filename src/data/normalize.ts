@@ -166,6 +166,8 @@ export function normalizeData(raw: unknown): AppData {
       if (value && value > 0) data.settings.categoryBudgets[category] = value;
     }
   }
+  const goal = int(settings.investGoalCents);
+  if (goal && goal > 0) data.settings.investGoalCents = goal;
   return data;
 }
 

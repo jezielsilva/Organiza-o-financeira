@@ -31,6 +31,20 @@ const UNIVERSE: Record<string, { bucket: Bucket; note: string }> = {
   TRXF11: { bucket: "tijolo", note: "Imóveis de varejo com contratos atípicos" },
 };
 
+/**
+ * Ideias fora do perfil: pagam todo mês e pagam bem, mas com risco maior
+ * (agro, infraestrutura, crédito high yield). Nunca entram na alocação.
+ */
+const IDEAS: Record<string, { kind: string; note: string; risk: string }> = {
+  KNCA11: { kind: "Fiagro", note: "Crédito do agronegócio, paga todo mês", risk: "Depende da safra e do crédito rural" },
+  VGIA11: { kind: "Fiagro", note: "CRAs com cota baixa e yield alto", risk: "Concentração em poucos devedores do agro" },
+  SNAG11: { kind: "Fiagro", note: "Crédito agro diversificado", risk: "Inadimplência no agro afeta os rendimentos" },
+  CPTI11: { kind: "FI-Infra", note: "Debêntures de infraestrutura, isento de IR", risk: "Cota oscila com a curva de juros longos" },
+  KDIF11: { kind: "FI-Infra", note: "Infraestrutura incentivada, paga todo mês", risk: "Cota alta e sensível aos juros longos" },
+  HGCR11: { kind: "FII high grade", note: "CRIs com garantias fortes", risk: "Rendimento cai quando o CDI cai" },
+  RBRY11: { kind: "FII high yield", note: "CRIs high yield com retorno acima da média", risk: "Risco de crédito maior que os de papel tradicionais" },
+};
+
 const TARGET: Record<Bucket, number> = { cdi: 0.45, ipca: 0.35, tijolo: 0.2 };
 const BUCKET_LABEL: Record<Bucket, string> = { cdi: "Juros (CDI)", ipca: "Inflação (IPCA)", tijolo: "Tijolo" };
 
@@ -131,14 +145,27 @@ interface Pick {
   reason: string;
 }
 
-function allocate(assets: Asset[], positions: Map<string, number>, budgetCents: number): Pick[] {
-  const eligible = assets.filter((a) => a.bucket && a.score >= 0.55);
+/**
+ * Compra cota a cota mirando a alocação-alvo. Com `goal`, o orçamento é livre
+ * e para quando a renda mensal estimada da carteira atinge a meta.
+ */
+function allocate(
+  assets: Asset[],
+  positions: Map<string, number>,
+  budgetCents: number,
+  goal?: { incomeCents: number; targetCents: number },
+): Pick[] {
+  const eligible = assets.filter((a) => a.bucket && a.score >= 0.55 && (!goal || a.dividends12mCents));
+  let income = goal?.incomeCents ?? 0;
+  let guard = 200_000;
   const value: Record<Bucket, number> = { cdi: 0, ipca: 0, tijolo: 0 };
   for (const a of assets) if (a.bucket) value[a.bucket] += (positions.get(a.ticker) ?? 0) * a.priceCents;
 
   const picks = new Map<string, Pick>();
   let remaining = budgetCents;
   for (;;) {
+    if (goal && income >= goal.targetCents) break;
+    if (--guard < 0) break;
     const total = value.cdi + value.ipca + value.tijolo;
     // Bucket mais abaixo do alvo primeiro; dentro dele, melhor pontuação que caiba no orçamento.
     const order = (Object.keys(TARGET) as Bucket[]).sort(
@@ -153,6 +180,7 @@ function allocate(assets: Asset[], positions: Map<string, number>, budgetCents: 
     }
     if (!chosen) break;
     remaining -= chosen.priceCents;
+    income += (chosen.dividends12mCents ?? 0) / 12;
     value[chosen.bucket!] += chosen.priceCents;
     const current = picks.get(chosen.ticker);
     if (current) {
@@ -176,7 +204,7 @@ export default async (request: Request): Promise<Response> => {
   const token = process.env.BRAPI_TOKEN;
   if (!token) return Response.json({ error: "BRAPI_TOKEN não configurado no Netlify." }, { status: 500 });
 
-  let body: { holdings?: Array<{ ticker?: unknown; quantity?: unknown }>; budgetCents?: unknown };
+  let body: { holdings?: Array<{ ticker?: unknown; quantity?: unknown }>; budgetCents?: unknown; goalCents?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -191,9 +219,10 @@ export default async (request: Request): Promise<Response> => {
     }
   }
   const budgetCents = Math.max(0, Math.min(10_000_000, Math.round(Number(body.budgetCents) || 0)));
+  const goalCents = Math.max(0, Math.min(2_000_000, Math.round(Number(body.goalCents) || 0)));
 
   lastError = null;
-  const tickers = [...new Set([...positions.keys(), ...Object.keys(UNIVERSE)])];
+  const tickers = [...new Set([...positions.keys(), ...Object.keys(UNIVERSE), ...Object.keys(IDEAS)])];
   const assets = (await Promise.all(tickers.map((t) => fetchAsset(t, token).catch(() => null)))).filter(
     (a): a is Asset => a !== null,
   );
@@ -215,6 +244,37 @@ export default async (request: Request): Promise<Response> => {
   });
 
   const picks = allocate(assets, positions, budgetCents);
+  const incomeCents = portfolio.reduce((s, p) => s + (p.monthlyIncomeCents ?? 0), 0);
+
+  function simulate() {
+    if (!goalCents) return null;
+    const goalPicks = allocate(assets, positions, Number.MAX_SAFE_INTEGER, { incomeCents, targetCents: goalCents });
+    const costCents = goalPicks.reduce((s, p) => s + p.costCents, 0);
+    const addedIncome = goalPicks.reduce((s, p) => {
+      const a = byTicker.get(p.ticker);
+      return s + ((a?.dividends12mCents ?? 0) * p.quantity) / 12;
+    }, 0);
+    return {
+      goalCents,
+      picks: goalPicks,
+      costCents,
+      monthlyIncomeCents: Math.round(incomeCents + addedIncome),
+      reached: incomeCents + addedIncome >= goalCents,
+      // Sem reinvestir os rendimentos: estimativa conservadora.
+      monthsAtBudget: budgetCents > 0 ? Math.ceil(costCents / budgetCents) : null,
+    };
+  }
+
+  const ideas = Object.entries(IDEAS)
+    .map(([ticker, info]) => ({ ticker, ...info, asset: byTicker.get(ticker) }))
+    .filter((i) => i.asset && i.asset.dividendYield !== null)
+    .sort((x, y) => (y.asset!.dividendYield ?? 0) - (x.asset!.dividendYield ?? 0))
+    .map(({ asset, ...info }) => ({
+      ...info,
+      priceCents: asset!.priceCents,
+      dividendYield: asset!.dividendYield,
+      monthsPaid: asset!.monthsPaid,
+    }));
   const ranking = assets
     .filter((a) => a.bucket)
     .sort((x, y) => y.score - x.score)
@@ -234,11 +294,13 @@ export default async (request: Request): Promise<Response> => {
     portfolio,
     totals: {
       valueCents: portfolio.reduce((s, p) => s + (p.valueCents ?? 0), 0),
-      monthlyIncomeCents: portfolio.reduce((s, p) => s + (p.monthlyIncomeCents ?? 0), 0),
+      monthlyIncomeCents: incomeCents,
     },
     picks,
     leftoverCents: budgetCents - picks.reduce((s, p) => s + p.costCents, 0),
     ranking,
+    simulation: simulate(),
+    ideas,
   });
 };
 

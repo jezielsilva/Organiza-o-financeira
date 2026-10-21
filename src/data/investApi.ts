@@ -9,6 +9,25 @@ export interface InvestPick {
   reason: string;
 }
 
+export interface InvestSimulation {
+  goalCents: number;
+  picks: InvestPick[];
+  costCents: number;
+  monthlyIncomeCents: number;
+  reached: boolean;
+  monthsAtBudget: number | null;
+}
+
+export interface InvestIdea {
+  ticker: string;
+  kind: string;
+  note: string;
+  risk: string;
+  priceCents: number;
+  dividendYield: number | null;
+  monthsPaid: number | null;
+}
+
 export interface InvestReport {
   generatedAt: string;
   portfolio: Array<{
@@ -31,13 +50,15 @@ export interface InvestReport {
     dividendYield: number | null;
     monthsPaid: number | null;
   }>;
+  simulation: InvestSimulation | null;
+  ideas: InvestIdea[];
 }
 
-export async function fetchInvestReport(holdings: Holding[], budgetCents: number, signal?: AbortSignal): Promise<InvestReport> {
+export async function fetchInvestReport(holdings: Holding[], budgetCents: number, goalCents: number, signal?: AbortSignal): Promise<InvestReport> {
   const response = await fetch("/api/invest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ holdings: holdings.map(({ ticker, quantity }) => ({ ticker, quantity })), budgetCents }),
+    body: JSON.stringify({ holdings: holdings.map(({ ticker, quantity }) => ({ ticker, quantity })), budgetCents, goalCents }),
     signal,
   });
   const json = await response.json().catch(() => null);

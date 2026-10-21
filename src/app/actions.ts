@@ -73,4 +73,7 @@ export const deleteHolding = (id: string) => commit({ [`holdings/${id}`]: null }
 export const setCategoryBudget = (category: string, cents: number | null) =>
   commit({ [`settings/categoryBudgets/${safeKey(category)}`]: cents && cents > 0 ? cents : null });
 
+export const setInvestGoal = (cents: number | null) =>
+  commit({ "settings/investGoalCents": cents && cents > 0 ? cents : null });
+
 export const undo = (patch: Patch) => commit(patch);
