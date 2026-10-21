@@ -5,6 +5,7 @@ import type { Holding } from "../domain/types";
 export interface InvestPick {
   ticker: string;
   quantity: number;
+  priceCents: number;
   costCents: number;
   reason: string;
 }

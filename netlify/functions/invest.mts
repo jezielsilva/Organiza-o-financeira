@@ -21,6 +21,7 @@ const UNIVERSE: Record<string, { bucket: Bucket; note: string }> = {
   VGIR11: { bucket: "cdi", note: "CRIs atrelados ao CDI: rende mais com juros altos" },
   KNCR11: { bucket: "cdi", note: "CRIs de alta qualidade atrelados ao CDI" },
   RZAK11: { bucket: "cdi", note: "Crédito imobiliário pós-fixado" },
+  GARE11: { bucket: "tijolo", note: "Galpões e varejo com cota baixa, paga todo mês" },
   CPTS11: { bucket: "ipca", note: "CRIs em IPCA: protege da inflação" },
   KNIP11: { bucket: "ipca", note: "CRIs em IPCA de baixo risco" },
   RECR11: { bucket: "ipca", note: "Crédito imobiliário majoritariamente em IPCA" },
@@ -44,6 +45,13 @@ const IDEAS: Record<string, { kind: string; note: string; risk: string }> = {
   HGCR11: { kind: "FII high grade", note: "CRIs com garantias fortes", risk: "Rendimento cai quando o CDI cai" },
   RBRY11: { kind: "FII high yield", note: "CRIs high yield com retorno acima da média", risk: "Risco de crédito maior que os de papel tradicionais" },
 };
+
+/**
+ * Perfil conservador de aportes pequenos: só cotas de até R$ 20 entram nas
+ * recomendações e no simulador. As mais caras viram "ideias".
+ */
+const MAX_PROFILE_PRICE_CENTS = 2000;
+const inProfile = (a: Asset) => a.bucket !== null && a.priceCents <= MAX_PROFILE_PRICE_CENTS;
 
 const TARGET: Record<Bucket, number> = { cdi: 0.45, ipca: 0.35, tijolo: 0.2 };
 const BUCKET_LABEL: Record<Bucket, string> = { cdi: "Juros (CDI)", ipca: "Inflação (IPCA)", tijolo: "Tijolo" };
@@ -141,6 +149,7 @@ async function fetchAsset(ticker: string, token: string): Promise<Asset | null> 
 interface Pick {
   ticker: string;
   quantity: number;
+  priceCents: number;
   costCents: number;
   reason: string;
 }
@@ -155,7 +164,7 @@ function allocate(
   budgetCents: number,
   goal?: { incomeCents: number; targetCents: number },
 ): Pick[] {
-  const eligible = assets.filter((a) => a.bucket && a.score >= 0.55 && (!goal || a.dividends12mCents));
+  const eligible = assets.filter((a) => inProfile(a) && a.score >= 0.55 && (!goal || a.dividends12mCents));
   let income = goal?.incomeCents ?? 0;
   let guard = 200_000;
   const value: Record<Bucket, number> = { cdi: 0, ipca: 0, tijolo: 0 };
@@ -191,6 +200,7 @@ function allocate(
       picks.set(chosen.ticker, {
         ticker: chosen.ticker,
         quantity: 1,
+        priceCents: chosen.priceCents,
         costCents: chosen.priceCents,
         reason: `${BUCKET_LABEL[chosen.bucket!]}: ${chosen.note}${dy}`,
       });
@@ -265,7 +275,11 @@ export default async (request: Request): Promise<Response> => {
     };
   }
 
-  const ideas = Object.entries(IDEAS)
+  // Ideias: fora do perfil por tipo (IDEAS) ou por preço (cota acima do teto).
+  const pricey = assets
+    .filter((a) => a.bucket && !inProfile(a))
+    .map((a) => [a.ticker, { kind: `${BUCKET_LABEL[a.bucket!]} · cota alta`, note: a.note, risk: "Cota acima do seu padrão: cada aporte compra menos cotas" }] as const);
+  const ideas = [...Object.entries(IDEAS), ...pricey]
     .map(([ticker, info]) => ({ ticker, ...info, asset: byTicker.get(ticker) }))
     .filter((i) => i.asset && i.asset.dividendYield !== null)
     .sort((x, y) => (y.asset!.dividendYield ?? 0) - (x.asset!.dividendYield ?? 0))
@@ -276,7 +290,7 @@ export default async (request: Request): Promise<Response> => {
       monthsPaid: asset!.monthsPaid,
     }));
   const ranking = assets
-    .filter((a) => a.bucket)
+    .filter(inProfile)
     .sort((x, y) => y.score - x.score)
     .slice(0, 8)
     .map((a) => ({

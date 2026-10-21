@@ -31,6 +31,7 @@ function PickList({ picks }: { picks: InvestPick[] }) {
             </span>
             <span className="tabular">{formatBRL(p.costCents)}</span>
           </p>
+          <p className="tabular text-[13px] text-fg/80">{formatBRL(p.priceCents)} por cota</p>
           <p className="text-[13px] text-muted">{p.reason}</p>
         </li>
       ))}
@@ -136,7 +137,7 @@ export default function InvestmentsPage() {
       <Card>
         <SectionTitle
           title="Quanto vai investir este mês?"
-          description="Distribui o valor em cotas inteiras, priorizando FIIs que pagam todo mês."
+          description="Distribui o valor em cotas inteiras de até R$ 20, priorizando FIIs que pagam todo mês."
         />
         <form
           className="flex gap-2"
@@ -303,7 +304,7 @@ export default function InvestmentsPage() {
             Ideias fora do seu padrão
           </summary>
           <p className="mt-2 text-[13px] text-muted">
-            Pagam todo mês e pagam bem, mas com risco maior que a sua carteira. Não entram nas recomendações acima.
+            Pagam todo mês e pagam bem, mas têm cota mais cara ou risco maior que a sua carteira. Não entram nas recomendações acima.
           </p>
           <ul className="mt-3 divide-y divide-line">
             {report.ideas.map((i) => (
