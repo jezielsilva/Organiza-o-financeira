@@ -110,6 +110,11 @@ export default function InvestmentsPage() {
     [holdings],
   );
 
+  // A meta salva pode chegar do Firebase depois da tela abrir.
+  useEffect(() => {
+    if (savedGoal !== null) setGoal((current) => current ?? savedGoal);
+  }, [savedGoal]);
+
   // Pesquisa a cada vez que a tela é aberta (e quando a carteira muda).
   useEffect(() => {
     void load(budget ?? 0, goal ?? 0);
