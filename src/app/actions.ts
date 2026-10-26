@@ -4,7 +4,17 @@
  */
 
 import { normalizeHolder } from "../domain/invoice/statementParser";
-import type { FixedBill, Goal, Holding, Income, Invoice, PlannedPurchase, PlanStatus, Purchase } from "../domain/types";
+import {
+  newId,
+  type FixedBill,
+  type Goal,
+  type Holding,
+  type Income,
+  type Invoice,
+  type PlannedPurchase,
+  type PlanStatus,
+  type Purchase,
+} from "../domain/types";
 import { safeKey, type Patch } from "../data/patch";
 import { store } from "./store";
 
@@ -69,6 +79,21 @@ export const addToGoal = (goal: Goal, cents: number) =>
 
 export const saveHolding = (holding: Holding) => commit({ [`holdings/${holding.id}`]: holding });
 export const deleteHolding = (id: string) => commit({ [`holdings/${id}`]: null });
+
+/** Registra compras de cotas: soma à posição existente do ticker ou cria uma nova. */
+export function buyHoldings(buys: Array<{ ticker: string; quantity: number }>): Patch {
+  const patch: Patch = {};
+  const current = Object.values(data().holdings);
+  for (const { ticker, quantity } of buys) {
+    const existing = current.find((h) => h.ticker === ticker);
+    if (existing) patch[`holdings/${existing.id}/quantity`] = existing.quantity + quantity;
+    else {
+      const holding: Holding = { id: newId("h"), ticker, quantity };
+      patch[`holdings/${holding.id}`] = holding;
+    }
+  }
+  return commit(patch);
+}
 
 export const setCategoryBudget = (category: string, cents: number | null) =>
   commit({ [`settings/categoryBudgets/${safeKey(category)}`]: cents && cents > 0 ? cents : null });

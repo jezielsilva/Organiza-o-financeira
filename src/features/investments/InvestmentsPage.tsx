@@ -1,6 +1,6 @@
-import { CircleAlert, Flag, Lightbulb, Plus, RefreshCw, Sprout, Trash2, TrendingUp } from "lucide-react";
+import { CircleAlert, CircleCheck, Flag, Lightbulb, Plus, RefreshCw, Sprout, Trash2, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { deleteHolding, saveHolding, setInvestGoal, undo } from "../../app/actions";
+import { buyHoldings, deleteHolding, saveHolding, setInvestGoal, undo } from "../../app/actions";
 import { useAppState } from "../../app/store";
 import { fetchInvestReport, type InvestPick, type InvestReport } from "../../data/investApi";
 import { formatBRL } from "../../domain/money";
@@ -21,7 +21,14 @@ const STARTER: Array<Pick<Holding, "ticker" | "quantity">> = [
 const pct = (v: number | null) => (v === null ? "—" : `${(v * 100).toFixed(1)}%`);
 
 function PickList({ picks }: { picks: InvestPick[] }) {
+  const toast = useToast();
+  const buy = (items: InvestPick[]) => {
+    const inverse = buyHoldings(items.map(({ ticker, quantity }) => ({ ticker, quantity })));
+    const label = items.length === 1 ? `${items[0].quantity}× ${items[0].ticker}` : `${items.length} ativos`;
+    toast({ message: `${label} adicionado à carteira`, action: { label: "Desfazer", onClick: () => undo(inverse) } });
+  };
   return (
+    <>
     <ul className="divide-y divide-line">
       {picks.map((p) => (
         <li key={p.ticker} className="py-3">
@@ -33,9 +40,18 @@ function PickList({ picks }: { picks: InvestPick[] }) {
           </p>
           <p className="tabular text-[13px] text-fg/80">{formatBRL(p.priceCents)} por cota</p>
           <p className="text-[13px] text-muted">{p.reason}</p>
+          <Button size="sm" variant="secondary" icon={CircleCheck} className="mt-2" onClick={() => buy([p])}>
+            Comprei
+          </Button>
         </li>
       ))}
     </ul>
+    {picks.length > 1 && (
+      <Button size="sm" icon={CircleCheck} block className="mt-1" onClick={() => buy(picks)}>
+        Comprei tudo
+      </Button>
+    )}
+    </>
   );
 }
 
