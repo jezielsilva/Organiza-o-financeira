@@ -229,12 +229,12 @@ export default function BillsPage() {
                   className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-surface-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] text-fg">{income.label}</p>
+                    <p className="truncate text-[0.9375rem] text-fg">{income.label}</p>
                     <p className="text-sm text-muted">
                       {income.recurrence === "monthly" ? `Todo mês desde ${formatMonthShort(income.startMonth)}` : "Só neste mês"}
                     </p>
                   </div>
-                  <Money cents={income.amountCents} className="text-[15px] font-semibold" />
+                  <Money cents={income.amountCents} className="text-[0.9375rem] font-semibold" />
                 </button>
               </li>
             ))}
@@ -273,13 +273,13 @@ export default function BillsPage() {
                   className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-3 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-[15px] text-fg", !bill.active && "line-through")}>{bill.name}</p>
+                    <p className={cn("truncate text-[0.9375rem] text-fg", !bill.active && "line-through")}>{bill.name}</p>
                     <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted">
                       Vence dia {bill.dueDay} <Badge>{bill.category}</Badge>
                       {!bill.active && <Badge tone="warning">pausada</Badge>}
                     </p>
                   </div>
-                  <Money cents={bill.amountCents} className="text-[15px] font-semibold" />
+                  <Money cents={bill.amountCents} className="text-[0.9375rem] font-semibold" />
                 </button>
                 <Switch
                   checked={bill.active}

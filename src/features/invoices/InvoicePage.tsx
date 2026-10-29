@@ -147,13 +147,13 @@ function UploadZone({
         </div>
         <div>
           <h2 className="text-lg font-semibold text-fg">Importar a fatura de {formatMonthName(month)}</h2>
-          <p className="mt-1 max-w-md text-[15px] text-muted">
+          <p className="mt-1 max-w-md text-[0.9375rem] text-muted">
             Envie o PDF da fatura. O app lê todas as páginas, separa por cartão e identifica o mês pelo vencimento.
             Nada sai do seu aparelho durante a leitura.
           </p>
         </div>
         {progress ? (
-          <p role="status" className="flex items-center gap-2 text-[15px] font-medium text-accent">
+          <p role="status" className="flex items-center gap-2 text-[0.9375rem] font-medium text-accent">
             <RefreshCw className="size-4 animate-spin" aria-hidden /> {progress}
           </p>
         ) : (
@@ -255,7 +255,7 @@ function InvoiceHeader({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[13px] text-muted">Fatura de {formatMonthName(invoice.month).toLowerCase()}</p>
+          <p className="text-[0.8125rem] text-muted">Fatura de {formatMonthName(invoice.month).toLowerCase()}</p>
           <h2 className="text-xl font-bold">Cartão {invoice.issuer}</h2>
         </div>
         <div className="flex gap-1.5">
@@ -268,13 +268,13 @@ function InvoiceHeader({
         <span aria-hidden className="absolute -right-10 -bottom-16 size-52 rounded-full border-[28px] border-white/10" />
         <div className="flex items-center justify-between">
           <span aria-hidden className="h-7 w-10 rounded-md bg-gradient-to-br from-[#f6d58e] to-[#b98a3c]" />
-          <span className="text-[13px] text-white/90">{invoice.dueDate ? `vence ${formatDate(invoice.dueDate)}` : formatMonthLong(invoice.month)}</span>
+          <span className="text-[0.8125rem] text-white/90">{invoice.dueDate ? `vence ${formatDate(invoice.dueDate)}` : formatMonthLong(invoice.month)}</span>
         </div>
         <div>
-          <p className="text-[13px] text-white/90">Sua parte</p>
+          <p className="text-[0.8125rem] text-white/90">Sua parte</p>
           <BigMoney cents={share} size="lg" className="text-white" centsClassName="text-white/70" />
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-white/90">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[0.8125rem] text-white/90">
           <span>{fromPdf ? `Total impresso ${formatBRL(invoice.statementTotalCents)}` : "Lançada à mão"}</span>
           {fromPdf && diff === 0 && (
             <span className="flex items-center gap-1.5 rounded-full bg-black/35 px-3 py-1 font-semibold text-white">
@@ -316,10 +316,10 @@ function PurchaseRow({
     >
       <CategoryIcon category={purchase.category} muted={!counted} />
       <button type="button" onClick={onEdit} className="min-w-0 flex-1 rounded-lg py-0.5 text-left" aria-label={`Editar ${purchase.description}`}>
-        <p className={cn("line-clamp-2 text-[15px] font-semibold break-words", counted ? "text-fg" : "text-muted line-through")}>
+        <p className={cn("line-clamp-2 text-[0.9375rem] font-semibold break-words", counted ? "text-fg" : "text-muted line-through")}>
           {purchase.description}
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-muted">
           <span className="tabular">{formatDateShort(purchase.date)}</span>
           <span aria-hidden>·</span>
           <span>{purchase.category}</span>
@@ -343,7 +343,7 @@ function PurchaseRow({
       </button>
       <Money
         cents={purchase.amountCents}
-        className={cn("font-display text-[15px] font-semibold", !counted && "text-muted")}
+        className={cn("font-display text-[0.9375rem] font-semibold", !counted && "text-muted")}
         tone={purchase.amountCents < 0 ? "positive" : undefined}
       />
       <div className="flex shrink-0">
@@ -427,7 +427,7 @@ function PurchaseList({ invoice, onEdit }: { invoice: Invoice; onEdit: (p: Purch
                 aria-checked={selected}
                 onClick={() => setHolderFilter(h)}
                 className={cn(
-                  "h-10 shrink-0 rounded-full px-4 text-[13px] font-bold whitespace-nowrap",
+                  "h-10 shrink-0 rounded-full px-4 text-[0.8125rem] font-bold whitespace-nowrap",
                   selected ? "bg-lime text-ink" : counted ? "border border-line bg-surface text-fg" : "border border-dashed border-line text-muted",
                 )}
               >
@@ -459,7 +459,7 @@ function PurchaseList({ invoice, onEdit }: { invoice: Invoice; onEdit: (p: Purch
         ]}
       />
       {groups.length === 0 ? (
-        <p className="py-10 text-center text-[15px] text-muted">Nenhum lançamento encontrado com esses filtros.</p>
+        <p className="py-10 text-center text-[0.9375rem] text-muted">Nenhum lançamento encontrado com esses filtros.</p>
       ) : (
         <div className="mt-4 space-y-5">
           {groups.map(([holder, list]) => {
@@ -583,7 +583,7 @@ export default function InvoicePage() {
             onDelete={() => removeInvoice(invoice)}
           />
           {progress && (
-            <p role="status" className="flex items-center gap-2 px-1 text-[15px] font-medium text-accent">
+            <p role="status" className="flex items-center gap-2 px-1 text-[0.9375rem] font-medium text-accent">
               <RefreshCw className="size-4 animate-spin" aria-hidden /> {progress}
             </p>
           )}

@@ -81,14 +81,21 @@ export const saveHolding = (holding: Holding) => commit({ [`holdings/${holding.i
 export const deleteHolding = (id: string) => commit({ [`holdings/${id}`]: null });
 
 /** Registra compras de cotas: soma à posição existente do ticker ou cria uma nova. */
-export function buyHoldings(buys: Array<{ ticker: string; quantity: number }>): Patch {
+export function buyHoldings(buys: Array<{ ticker: string; quantity: number; priceCents?: number }>): Patch {
   const patch: Patch = {};
   const current = Object.values(data().holdings);
-  for (const { ticker, quantity } of buys) {
+  for (const { ticker, quantity, priceCents } of buys) {
     const existing = current.find((h) => h.ticker === ticker);
-    if (existing) patch[`holdings/${existing.id}/quantity`] = existing.quantity + quantity;
-    else {
-      const holding: Holding = { id: newId("h"), ticker, quantity };
+    if (existing) {
+      patch[`holdings/${existing.id}/quantity`] = existing.quantity + quantity;
+      // Preço médio ponderado: só quando já se conhece o médio anterior.
+      if (priceCents && existing.avgPriceCents) {
+        patch[`holdings/${existing.id}/avgPriceCents`] = Math.round(
+          (existing.avgPriceCents * existing.quantity + priceCents * quantity) / (existing.quantity + quantity),
+        );
+      }
+    } else {
+      const holding: Holding = { id: newId("h"), ticker, quantity, ...(priceCents ? { avgPriceCents: priceCents } : {}) };
       patch[`holdings/${holding.id}`] = holding;
     }
   }
@@ -100,5 +107,8 @@ export const setCategoryBudget = (category: string, cents: number | null) =>
 
 export const setInvestGoal = (cents: number | null) =>
   commit({ "settings/investGoalCents": cents && cents > 0 ? cents : null });
+
+export const setWatch = (ticker: string, targetCents: number | null) =>
+  commit({ [`settings/watchlist/${ticker}`]: targetCents && targetCents > 0 ? targetCents : null });
 
 export const undo = (patch: Patch) => commit(patch);

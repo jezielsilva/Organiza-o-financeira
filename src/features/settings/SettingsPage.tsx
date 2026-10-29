@@ -15,6 +15,7 @@ import { useRef, useState } from "react";
 import { undo } from "../../app/actions";
 import { isIOS, isStandalone, useInstallPrompt } from "../../app/install";
 import { store, useAppState } from "../../app/store";
+import { FONT_SCALES, type FontScale } from "../../data/persistence";
 import { backupFileName, BackupError, createBackup, downloadJson, parseBackup } from "../../data/backup";
 import { isFirebaseConfigured } from "../../data/sync/firebaseConfig";
 import { generateSyncCode, normalizeSyncCode } from "../../data/sync/firebaseSync";
@@ -128,7 +129,7 @@ function Sharing() {
                 </Button>
               </div>
             </div>
-            <dl className="grid grid-cols-2 gap-3 text-[15px]">
+            <dl className="grid grid-cols-2 gap-3 text-[0.9375rem]">
               <div>
                 <dt className="text-sm text-muted">Situação</dt>
                 <dd className="font-medium text-fg">{statusText}</dd>
@@ -268,6 +269,7 @@ function Backup() {
 
 function Appearance() {
   const theme = useAppState((s) => s.device.theme);
+  const fontScale = useAppState((s) => s.device.fontScale);
   return (
     <Card>
       <SectionTitle title="Aparência" />
@@ -281,6 +283,14 @@ function Appearance() {
           { value: "system", label: "Automático" },
         ]}
       />
+      <div className="mt-4">
+        <Segmented
+          label="Tamanho do texto"
+          value={String(fontScale)}
+          onChange={(value) => store.updateDevice({ fontScale: Number(value) as FontScale })}
+          options={FONT_SCALES.map((scale, i) => ({ value: String(scale), label: ["A−−", "A−", "Normal", "A+", "A++"][i] }))}
+        />
+      </div>
     </Card>
   );
 }
@@ -297,7 +307,7 @@ function Install() {
           Instalar
         </Button>
       ) : (
-        <ol className="list-decimal space-y-1 pl-5 text-[15px] text-fg">
+        <ol className="list-decimal space-y-1 pl-5 text-[0.9375rem] text-fg">
           <li>No Safari, toque em Compartilhar (quadrado com seta para cima).</li>
           <li>Escolha “Adicionar à Tela de Início”.</li>
           <li>Toque em “Adicionar”.</li>

@@ -189,7 +189,7 @@ export default function GoalsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[13px] text-muted">Guardando dinheiro</p>
+          <p className="text-[0.8125rem] text-muted">Guardando dinheiro</p>
           <h2 className="text-xl font-bold">Metas e reserva</h2>
         </div>
         <Button icon={Plus} onClick={() => setEditing({ goal: null, kind: "goal" })}>
@@ -209,8 +209,8 @@ export default function GoalsPage() {
             </div>
             <div className="space-y-1">
               <p className="font-display text-2xl font-bold">{formatBRL(reserve.savedCents)}</p>
-              <p className="text-[13px] font-semibold">de {formatBRL(reserve.targetCents)}</p>
-              <p className="pt-1 text-[13px] font-semibold">
+              <p className="text-[0.8125rem] font-semibold">de {formatBRL(reserve.targetCents)}</p>
+              <p className="pt-1 text-[0.8125rem] font-semibold">
                 {reserve.savedCents >= reserve.targetCents
                   ? "Reserva completa!"
                   : goalEta(reserve, month)
@@ -220,13 +220,13 @@ export default function GoalsPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setDepositing(reserve)} className="h-11 rounded-full bg-accent text-[14px] font-bold text-accent-fg">
+            <button type="button" onClick={() => setDepositing(reserve)} className="h-11 rounded-full bg-accent text-[0.875rem] font-bold text-accent-fg">
               Guardar agora
             </button>
             <button
               type="button"
               onClick={() => setEditing({ goal: reserve, kind: "emergency" })}
-              className="h-11 rounded-full border border-line text-[14px] font-bold text-fg hover:bg-surface-2"
+              className="h-11 rounded-full border border-line text-[0.875rem] font-bold text-fg hover:bg-surface-2"
             >
               Ajustar meta
             </button>
@@ -241,7 +241,7 @@ export default function GoalsPage() {
           <ShieldCheck className="size-9 shrink-0" aria-hidden />
           <span>
             <span className="block text-lg font-bold">Criar reserva de emergência</span>
-            <span className="block text-[13px] font-semibold">Sugestão: {formatBRL(suggested)} (6 meses do seu custo)</span>
+            <span className="block text-[0.8125rem] font-semibold">Sugestão: {formatBRL(suggested)} (6 meses do seu custo)</span>
           </span>
         </button>
       )}
@@ -255,7 +255,7 @@ export default function GoalsPage() {
             return (
               <li key={g.id}>
                 <div className={cn("flex h-full flex-col gap-2.5 rounded-3xl p-4", "border border-line bg-surface")}>
-                  <button type="button" onClick={() => setEditing({ goal: g, kind: "goal" })} className="text-left text-[13px] font-bold">
+                  <button type="button" onClick={() => setEditing({ goal: g, kind: "goal" })} className="text-left text-[0.8125rem] font-bold">
                     {g.name}
                   </button>
                   <span className="font-display text-2xl font-bold">{pct}%</span>
@@ -270,7 +270,7 @@ export default function GoalsPage() {
                     type="button"
                     onClick={() => setDepositing(g)}
                     className={cn(
-                      "mt-auto h-10 rounded-full text-[13px] font-bold",
+                      "mt-auto h-10 rounded-full text-[0.8125rem] font-bold",
                       "bg-surface-2 text-fg",
                     )}
                   >
@@ -287,7 +287,7 @@ export default function GoalsPage() {
         <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
           <CircleDollarSign className="size-5" aria-hidden />
         </span>
-        <p className="text-[15px] leading-relaxed text-fg/80">
+        <p className="text-[0.9375rem] leading-relaxed text-fg/80">
           Em {formatMonthShort(nextMonth.month)} devem sobrar <strong className="text-fg">{formatBRL(nextMonth.balanceCents)}</strong>.
           {monthlyTotal > 0
             ? nextMonth.balanceCents >= monthlyTotal

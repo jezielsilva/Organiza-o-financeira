@@ -35,7 +35,7 @@ function Projection() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[13px] text-muted">Próximos {period} meses</p>
+          <p className="text-[0.8125rem] text-muted">Próximos {period} meses</p>
           <h2 className="text-xl font-bold">Projeção</h2>
         </div>
         <div className="w-32">
@@ -60,7 +60,7 @@ function Projection() {
             aria-checked={scenario === s}
             onClick={() => setScenario(s)}
             className={cn(
-              "h-11 rounded-2xl text-[14px] font-semibold",
+              "h-11 rounded-2xl text-[0.875rem] font-semibold",
               scenario === s ? "bg-lime font-bold text-ink" : "border border-line bg-surface text-fg",
             )}
           >
@@ -72,7 +72,7 @@ function Projection() {
       <Card className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[13px] text-muted">Se guardar toda a sobra</p>
+            <p className="text-[0.8125rem] text-muted">Se guardar toda a sobra</p>
             <p className="font-display leading-tight font-bold">
               <span className="text-4xl">{compact(saved).replace(" mil", "")}</span>
               <span className="text-xl text-muted">{saved >= 100000 ? " mil" : " reais"}</span>
@@ -125,7 +125,7 @@ function Projection() {
         })}
       </ul>
 
-      <p className="rounded-[1.25rem] border border-dashed border-line p-4 text-[13px] leading-relaxed text-muted">
+      <p className="rounded-[1.25rem] border border-dashed border-line p-4 text-[0.8125rem] leading-relaxed text-muted">
         Realista usa as parcelas reais e a média do dia a dia das 3 últimas faturas. Conservador soma 10% de imprevistos às
         despesas; otimista considera o gasto do dia a dia 6% menor.
       </p>
@@ -196,9 +196,9 @@ function InstallmentSchedule() {
           <li key={m}>
             <details className="group rounded-[1.1rem] bg-surface-2">
               <summary className="flex items-center gap-3 px-4 py-3 marker:content-none">
-                <span className="flex-1 text-[15px] font-semibold text-fg">{formatMonthLong(m)}</span>
+                <span className="flex-1 text-[0.9375rem] font-semibold text-fg">{formatMonthLong(m)}</span>
                 <span className="text-sm text-muted">{items.length}</span>
-                <Money cents={total} className="w-24 text-right text-[15px] font-semibold" />
+                <Money cents={total} className="w-24 text-right text-[0.9375rem] font-semibold" />
                 <ChevronDown className="size-4 text-muted transition group-open:rotate-180" aria-hidden />
               </summary>
               {items.length > 0 && (

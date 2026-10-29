@@ -133,7 +133,7 @@ export default function Onboarding() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-fg">Controle Financeiro</h1>
-              <p className="mt-2 text-[15px] text-muted">
+              <p className="mt-2 text-[0.9375rem] text-muted">
                 Importe a fatura do cartão, cadastre renda e contas fixas, e veja quanto sobra neste mês e nos próximos.
               </p>
             </div>
@@ -176,7 +176,7 @@ export default function Onboarding() {
           >
             <div>
               <h1 className="text-xl font-bold text-fg">Entrar com um código</h1>
-              <p className="mt-1 text-[15px] text-muted">
+              <p className="mt-1 text-[0.9375rem] text-muted">
                 Em Ajustes, no outro aparelho, está o código de compartilhamento. Digite-o aqui.
               </p>
             </div>
@@ -202,7 +202,7 @@ export default function Onboarding() {
             <div>
               <p className="text-sm font-medium text-accent">Passo 1 de 2</p>
               <h1 className="mt-1 text-xl font-bold text-fg">Quanto entra por mês?</h1>
-              <p className="mt-1 text-[15px] text-muted">Salário e outras rendas fixas. Dá para mudar depois.</p>
+              <p className="mt-1 text-[0.9375rem] text-muted">Salário e outras rendas fixas. Dá para mudar depois.</p>
             </div>
             <RowsEditor rows={incomes} setRows={setIncomes} namePlaceholder="Ex.: Salário" addLabel="Outra renda" />
             <div className="flex gap-2">
@@ -221,7 +221,7 @@ export default function Onboarding() {
             <div>
               <p className="text-sm font-medium text-accent">Passo 2 de 2</p>
               <h1 className="mt-1 text-xl font-bold text-fg">Contas fixas</h1>
-              <p className="mt-1 text-[15px] text-muted">Aluguel, luz, internet, escola… o que se repete todo mês.</p>
+              <p className="mt-1 text-[0.9375rem] text-muted">Aluguel, luz, internet, escola… o que se repete todo mês.</p>
             </div>
             <RowsEditor rows={bills} setRows={setBills} withDueDay namePlaceholder="Ex.: Aluguel" addLabel="Outra conta" />
             <div className="flex gap-2">

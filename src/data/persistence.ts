@@ -24,11 +24,16 @@ export interface OutboxEntry {
   createdAt: number;
 }
 
+export const FONT_SCALES = [0.85, 0.925, 1, 1.1, 1.2] as const;
+export type FontScale = (typeof FONT_SCALES)[number];
+
 export interface DeviceSettings {
   deviceId: string;
   deviceName?: string;
   syncCode?: string;
   theme: "system" | "light" | "dark";
+  /** Escala do texto e do layout (1 = 16px na raiz). */
+  fontScale: FontScale;
   /** Salas em que este aparelho já entrou (a primeira entrada mescla dados locais). */
   joinedRooms: string[];
 }
@@ -106,6 +111,7 @@ export function loadDevice(): DeviceSettings {
     deviceName: saved.deviceName,
     syncCode: saved.syncCode ?? legacyCode ?? undefined,
     theme: saved.theme ?? "dark",
+    fontScale: FONT_SCALES.includes(saved.fontScale as FontScale) ? (saved.fontScale as FontScale) : 1,
     joinedRooms: saved.joinedRooms ?? [],
   };
   if (!saved.deviceId) {

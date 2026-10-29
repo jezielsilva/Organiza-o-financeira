@@ -87,6 +87,10 @@ function useTheme() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+  const fontScale = useAppState((s) => s.device.fontScale);
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontScale * 100}%`;
+  }, [fontScale]);
 }
 
 function syncBadge(sync: SyncStatus): { icon: LucideIcon; label: string; dot: string; spin?: boolean } | null {
@@ -133,8 +137,8 @@ function Header({ route }: { route: Route }) {
           {name?.trim() ? name.trim()[0].toUpperCase() : <Coins className="size-5" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] leading-tight text-muted">{name ? `${greeting()},` : greeting()}</p>
-          <p className="truncate text-[17px] leading-tight font-bold text-fg">{name || PAGE_TITLES[route]}</p>
+          <p className="text-[0.8125rem] leading-tight text-muted">{name ? `${greeting()},` : greeting()}</p>
+          <p className="truncate text-[1.0625rem] leading-tight font-bold text-fg">{name || PAGE_TITLES[route]}</p>
         </div>
         {badge && (
           <button type="button" onClick={() => navigate("ajustes")} className={roundButton} aria-label={`Compartilhamento: ${badge.label}`} title={badge.label}>
@@ -172,7 +176,7 @@ function MonthSwitcher({ month, setMonth }: { month: string; setMonth: (m: strin
         onClick={() => setMonth(currentMonth())}
         title="Voltar para o mês atual"
         aria-live="polite"
-        className="h-10 rounded-full px-4 text-[15px] font-semibold text-fg"
+        className="h-10 rounded-full px-4 text-[0.9375rem] font-semibold text-fg"
       >
         {formatMonthLong(month)}
       </button>
@@ -199,7 +203,7 @@ function SideNav({ route }: { route: Route }) {
             href={`#/${item.route}`}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-12 items-center gap-3 rounded-full px-4 text-[15px] font-semibold transition",
+              "flex h-12 items-center gap-3 rounded-full px-4 text-[0.9375rem] font-semibold transition",
               active ? "bg-lime text-ink" : "text-muted hover:bg-surface hover:text-fg",
             )}
           >
@@ -229,7 +233,7 @@ function BottomNav({ route }: { route: Route }) {
                 aria-label={active ? undefined : item.label}
                 className={cn(
                   "flex h-12 items-center justify-center gap-2 rounded-full font-bold transition-all",
-                  active ? "bg-lime px-4 text-[14px] text-ink" : "w-12 text-muted hover:text-fg",
+                  active ? "bg-lime px-4 text-[0.875rem] text-ink" : "w-12 text-muted hover:text-fg",
                 )}
               >
                 <item.icon className="size-5" aria-hidden />

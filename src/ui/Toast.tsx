@@ -51,11 +51,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 className={cn("size-5 shrink-0", toast.tone === "error" ? "text-negative" : "text-accent")}
                 aria-hidden
               />
-              <p className="flex-1 text-[15px]">{toast.message}</p>
+              <p className="flex-1 text-[0.9375rem]">{toast.message}</p>
               {toast.action && (
                 <button
                   type="button"
-                  className="h-10 shrink-0 rounded-xl px-3 text-[15px] font-semibold text-bg underline underline-offset-4 hover:bg-bg/10"
+                  className="h-10 shrink-0 rounded-xl px-3 text-[0.9375rem] font-semibold text-bg underline underline-offset-4 hover:bg-bg/10"
                   onClick={() => {
                     toast.action!.onClick();
                     dismiss(toast.id);

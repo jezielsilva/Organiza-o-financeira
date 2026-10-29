@@ -46,7 +46,7 @@ function BudgetBar({ summary }: { summary: MonthSummary }) {
           <div key={s.label} className={cn("h-full rounded-full", s.color)} style={{ width: `${(s.cents / scale) * 100}%` }} />
         ))}
       </div>
-      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-fg/80">
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[0.8125rem] text-fg/80">
         {segments.map((s) => (
           <li key={s.label} className="flex items-center gap-1.5">
             <span className={cn("size-2 rounded-full", s.color)} aria-hidden />
@@ -106,7 +106,7 @@ function Hero({ summary }: { summary: MonthSummary }) {
   return (
     <section aria-labelledby="hero-title" className="space-y-5 pt-4 pb-2">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="hero-title" className="text-[15px] text-muted">
+        <h2 id="hero-title" className="text-[0.9375rem] text-muted">
           {positive ? "Sobra" : "Falta"} em {formatMonthName(summary.month).toLowerCase()}
         </h2>
         {pct !== null && (
@@ -158,10 +158,10 @@ function Row({ href, label, value, hint }: { href: string; label: string; value:
     <li>
       <a href={href} className="flex items-center gap-3 px-4 py-3.5 hover:bg-surface-2">
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-fg">{label}</span>
-          <span className="block truncate text-[13px] text-muted">{hint}</span>
+          <span className="block text-[0.9375rem] font-semibold text-fg">{label}</span>
+          <span className="block truncate text-[0.8125rem] text-muted">{hint}</span>
         </span>
-        <span className="tabular text-[15px] font-semibold text-fg">{value}</span>
+        <span className="tabular text-[0.9375rem] font-semibold text-fg">{value}</span>
         <ArrowRight className="size-4 text-muted" aria-hidden />
       </a>
     </li>
@@ -219,7 +219,7 @@ function Insight({ next }: { next: MonthSummary }) {
   return (
     <Card className="flex gap-3 p-4 sm:p-5">
       <ChartLine className="mt-1 size-5 shrink-0 text-muted" aria-hidden />
-      <p className="text-[15px] leading-relaxed text-fg/80">
+      <p className="text-[0.9375rem] leading-relaxed text-fg/80">
         <strong className="text-fg">
           {formatMonthName(next.month)} {next.balanceCents >= 0 ? "sobra" : "falta"} {formatBRL(Math.abs(next.balanceCents))}.
         </strong>{" "}
@@ -246,7 +246,7 @@ function PlanMatches() {
       <ul className="space-y-2">
         {matches.map(({ plan, purchase }) => (
           <li key={plan.id} className="flex flex-col gap-3 rounded-2xl bg-surface-2 p-3 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1 text-[15px]">
+            <div className="min-w-0 flex-1 text-[0.9375rem]">
               <p className="font-semibold text-fg">
                 <Link2 className="mr-1 inline size-4 text-muted" aria-hidden />
                 {plan.description} · {formatBRL(planInstallmentCents(plan, 1))}/mês
@@ -282,7 +282,7 @@ function NextMonths({ months }: { months: MonthSummary[] }) {
   const maxAbs = Math.max(...months.map((m) => Math.abs(m.balanceCents)), 1);
   return (
     <details className="group rounded-3xl border border-line bg-surface p-5 sm:p-6">
-      <summary className="flex items-center justify-between text-[15px] font-bold text-fg marker:content-none">
+      <summary className="flex items-center justify-between text-[0.9375rem] font-bold text-fg marker:content-none">
         Próximos meses
         <ArrowRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
       </summary>
@@ -297,14 +297,14 @@ function NextMonths({ months }: { months: MonthSummary[] }) {
                 className="grid w-full grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-2xl px-2 py-2.5 text-left hover:bg-surface-2"
                 aria-label={`${formatMonthName(m.month)}: ${positive ? "sobra" : "falta"} ${formatBRL(Math.abs(m.balanceCents))}. Abrir mês.`}
               >
-                <span className="text-[15px] font-semibold capitalize text-fg">{formatMonthShort(m.month)}</span>
+                <span className="text-[0.9375rem] font-semibold capitalize text-fg">{formatMonthShort(m.month)}</span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
                   <span
                     className={cn("block h-full rounded-full", positive ? "bg-fg/40" : "bg-negative")}
                     style={{ width: `${(Math.abs(m.balanceCents) / maxAbs) * 100}%` }}
                   />
                 </span>
-                <span className="flex items-center gap-1.5 text-[15px] font-semibold">
+                <span className="flex items-center gap-1.5 text-[0.9375rem] font-semibold">
                   <Money cents={m.balanceCents} signed tone="auto" />
                   {m.card.source === "projected" && <span className="text-xs font-normal text-muted">est.</span>}
                 </span>

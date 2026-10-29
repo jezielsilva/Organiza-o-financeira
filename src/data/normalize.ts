@@ -142,7 +142,8 @@ export function normalizeHolding(r: Raw): Holding | null {
   const quantity = int(r.quantity);
   const ticker = str(r.ticker).trim().toUpperCase();
   if (!r.id || !/^[A-Z0-9]{4,7}$/.test(ticker) || !quantity || quantity <= 0) return null;
-  return { id: str(r.id), ticker, quantity };
+  const avg = int(r.avgPriceCents);
+  return { id: str(r.id), ticker, quantity, ...(avg && avg > 0 ? { avgPriceCents: avg } : {}) };
 }
 
 export function normalizeData(raw: unknown): AppData {
@@ -168,6 +169,14 @@ export function normalizeData(raw: unknown): AppData {
   }
   const goal = int(settings.investGoalCents);
   if (goal && goal > 0) data.settings.investGoalCents = goal;
+  if (isObj(settings.watchlist)) {
+    const watchlist: Record<string, number> = {};
+    for (const [ticker, cents] of Object.entries(settings.watchlist)) {
+      const value = int(cents);
+      if (/^[A-Z0-9]{4,7}$/.test(ticker) && value && value > 0) watchlist[ticker] = value;
+    }
+    if (Object.keys(watchlist).length) data.settings.watchlist = watchlist;
+  }
   return data;
 }
 

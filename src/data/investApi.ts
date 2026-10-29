@@ -29,6 +29,29 @@ export interface InvestIdea {
   monthsPaid: number | null;
 }
 
+export type MarketSignal = "comprar" | "vender" | "observar" | "manter";
+
+export interface MarketRow {
+  ticker: string;
+  name: string;
+  note: string;
+  priceCents: number;
+  dividendYield: number | null;
+  change1d: number | null;
+  change30d: number | null;
+  low52Cents: number | null;
+  high52Cents: number | null;
+  rangePosition: number | null;
+  drawdown: number | null;
+  owned: number;
+  avgPriceCents: number | null;
+  gainCents: number | null;
+  gainPct: number | null;
+  targetCents: number | null;
+  signal: MarketSignal;
+  message: string;
+}
+
 export interface InvestReport {
   generatedAt: string;
   portfolio: Array<{
@@ -53,13 +76,20 @@ export interface InvestReport {
   }>;
   simulation: InvestSimulation | null;
   ideas: InvestIdea[];
+  market: MarketRow[];
 }
 
-export async function fetchInvestReport(holdings: Holding[], budgetCents: number, goalCents: number, signal?: AbortSignal): Promise<InvestReport> {
+export async function fetchInvestReport(
+  holdings: Holding[],
+  budgetCents: number,
+  goalCents: number,
+  watchlist: Record<string, number>,
+  signal?: AbortSignal,
+): Promise<InvestReport> {
   const response = await fetch("/api/invest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ holdings: holdings.map(({ ticker, quantity }) => ({ ticker, quantity })), budgetCents, goalCents }),
+    body: JSON.stringify({ holdings: holdings.map(({ ticker, quantity, avgPriceCents }) => ({ ticker, quantity, avgPriceCents })), budgetCents, goalCents, watchlist }),
     signal,
   });
   const json = await response.json().catch(() => null);

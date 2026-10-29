@@ -138,7 +138,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           </>
         }
       >
-        <div className="text-[15px] text-muted">{request?.message}</div>
+        <div className="text-[0.9375rem] text-muted">{request?.message}</div>
       </Sheet>
     </ConfirmContext.Provider>
   );

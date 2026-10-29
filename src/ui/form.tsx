@@ -149,7 +149,7 @@ export function Switch({
   return (
     <div className={cn("flex items-center justify-between gap-3", className)}>
       <div className="min-w-0">
-        <span id={`${id}-label`} className="block text-[15px] font-medium text-fg">
+        <span id={`${id}-label`} className="block text-[0.9375rem] font-medium text-fg">
           {label}
         </span>
         {description && (

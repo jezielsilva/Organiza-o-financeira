@@ -102,6 +102,8 @@ export interface Holding {
   /** Código B3 em maiúsculas, ex.: "MXRF11". */
   ticker: string;
   quantity: number;
+  /** Preço médio pago por cota/ação: base do lucro na venda. */
+  avgPriceCents?: Cents;
 }
 
 /** Configurações compartilhadas entre quem usa o mesmo código. */
@@ -112,6 +114,8 @@ export interface SharedSettings {
   categoryBudgets: Record<string, Cents>;
   /** Meta de renda passiva mensal (investimentos). */
   investGoalCents?: Cents;
+  /** Ações em observação → preço-alvo de compra. */
+  watchlist?: Record<string, Cents>;
 }
 
 export interface AppData {
