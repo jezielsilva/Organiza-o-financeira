@@ -94,7 +94,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
       }}
     >
       <div className="flex flex-col items-center gap-2 text-center">
-        <label htmlFor="plan-desc" className="text-[13px] text-muted">
+        <label htmlFor="plan-desc" className="text-[0.8125rem] text-muted">
           O que você quer comprar?
         </label>
         <input
@@ -102,7 +102,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ex.: Geladeira"
-          className="w-60 border-b border-line bg-transparent py-1.5 text-center text-[17px] font-semibold text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
+          className="w-60 border-b border-line bg-transparent py-1.5 text-center text-[1.0625rem] font-semibold text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
         />
         <label htmlFor="plan-value" className="sr-only">
           Valor total
@@ -136,7 +136,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
               aria-checked={selected}
               onClick={() => setInstallments(value)}
               className={cn(
-                "font-display h-11 rounded-2xl text-[15px] font-semibold",
+                "font-display h-11 rounded-2xl text-[0.9375rem] font-semibold",
                 selected ? "bg-fg text-bg" : "border border-line bg-surface text-fg",
               )}
             >
@@ -151,7 +151,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
         </Field>
       )}
 
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-[15px] text-fg/80">
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 text-[0.9375rem] text-fg/80">
         {draft ? (
           <span>
             {count === 1 ? "À vista" : `${count}x de `}
@@ -168,7 +168,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
           type="month"
           value={firstMonth}
           onChange={(e) => setFirstMonth(e.target.value)}
-          className="h-10 rounded-full border border-line bg-surface px-3 text-[15px] font-semibold text-fg"
+          className="h-10 rounded-full border border-line bg-surface px-3 text-[0.9375rem] font-semibold text-fg"
         />
       </div>
 
@@ -184,8 +184,8 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
               {sim.worst.balanceCents >= 0 ? <Check className="size-5" aria-hidden /> : <TriangleAlert className="size-5" aria-hidden />}
             </span>
             <div>
-              <p className="text-[15px] font-bold">{sim.worst.balanceCents >= 0 ? "Cabe no orçamento" : "Aperta o orçamento"}</p>
-              <p className="text-[13px] text-muted">
+              <p className="text-[0.9375rem] font-bold">{sim.worst.balanceCents >= 0 ? "Cabe no orçamento" : "Aperta o orçamento"}</p>
+              <p className="text-[0.8125rem] text-muted">
                 Mês mais apertado: {formatMonthShort(sim.worst.month)} ·{" "}
                 {sim.worst.balanceCents >= 0 ? `sobram ${formatBRL(sim.worst.balanceCents)}` : `faltam ${formatBRL(-sim.worst.balanceCents)}`}
               </p>
@@ -220,7 +220,7 @@ function Simulator({ editing, onDone }: { editing: PlannedPurchase | null; onDon
         <button
           type="button"
           onClick={() => setFirstMonth(sim.bestStart!.month)}
-          className="flex w-full items-start gap-3 rounded-[1.25rem] border border-line bg-surface p-4 text-left text-[14px] leading-relaxed text-fg/90"
+          className="flex w-full items-start gap-3 rounded-[1.25rem] border border-line bg-surface p-4 text-left text-[0.875rem] leading-relaxed text-fg/90"
         >
           <Lightbulb className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
           <span>
@@ -266,7 +266,7 @@ export default function PlansPage() {
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 [&>*]:min-w-0">
       <section aria-labelledby="sim-title">
-        <p className="text-[13px] text-muted">Simulador</p>
+        <p className="text-[0.8125rem] text-muted">Simulador</p>
         <h2 id="sim-title" className="mb-5 text-xl font-bold">
           {editing ? `Editando “${editing.description}”` : "Posso comprar?"}
         </h2>
@@ -304,20 +304,20 @@ export default function PlansPage() {
                   <li key={plan.id} className="rounded-[1.25rem] bg-surface p-4">
                     <div className="flex items-start gap-3">
                       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { setEditing(plan); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label={`Editar ${plan.description}`}>
-                        <p className="text-[15px] font-bold text-fg">{plan.description}</p>
-                        <p className="mt-0.5 text-[13px] text-muted">
+                        <p className="text-[0.9375rem] font-bold text-fg">{plan.description}</p>
+                        <p className="mt-0.5 text-[0.8125rem] text-muted">
                           {plan.installments === 1 ? "À vista" : `${plan.installments}x de ${formatBRL(planInstallmentCents(plan, 1))}`} ·{" "}
                           {formatMonthShort(plan.firstMonth)}
                           {plan.installments > 1 && ` a ${formatMonthShort(lastMonth)}`}
                         </p>
                       </button>
-                      <Money cents={plan.totalCents} className="font-display text-[15px] font-semibold" />
+                      <Money cents={plan.totalCents} className="font-display text-[0.9375rem] font-semibold" />
                     </div>
                     {view === "active" ? (
                       <>
                         <div className="mt-3 flex items-center gap-2">
                           <ProgressBar value={n ?? 0} max={plan.installments} label={`Parcela ${n ?? 0} de ${plan.installments}`} />
-                          <span className="shrink-0 text-[13px] text-muted tabular">
+                          <span className="shrink-0 text-[0.8125rem] text-muted tabular">
                             {n ? `${n}/${plan.installments}` : plan.firstMonth > month ? "não começou" : "terminou"}
                           </span>
                         </div>

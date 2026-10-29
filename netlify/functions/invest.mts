@@ -9,8 +9,13 @@
  *  4. Distribui o aporte cota a cota, mirando a alocação-alvo do perfil
  *     "renda passiva / moderado": juros pós-fixados > inflação > tijolo.
  *
+ *  5. Radar de tendência (lib/market): sinais de comprar na queda e vender
+ *     com lucro, para a carteira, ações boas pagadoras e a lista de observação.
+ *
  * Variável de ambiente obrigatória no Netlify: BRAPI_TOKEN.
  */
+
+import { buildMarket, fetchQuote, quoteErrors, type Position, type Quote } from "../lib/market";
 
 type Bucket = "cdi" | "ipca" | "tijolo";
 
@@ -67,83 +72,30 @@ interface Asset {
   monthsPaid: number | null;
   dividendYield: number | null;
   score: number;
+  quote: Quote;
 }
-
-interface BrapiQuote {
-  symbol: string;
-  shortName?: string;
-  longName?: string;
-  regularMarketPrice?: number;
-  dividendsData?: { cashDividends?: Array<{ paymentDate?: string; rate?: number }> };
-}
-
-/** Segundo motor: lê o "DY (12M)" da página pública do ativo no Investidor10. */
-async function investidor10Yield(ticker: string): Promise<number | null> {
-  const kind = /11$/.test(ticker) ? "fiis" : "acoes";
-  const response = await fetch(`https://investidor10.com.br/${kind}/${ticker.toLowerCase()}/`, {
-    headers: { "User-Agent": "Mozilla/5.0 (controle-financeiro)" },
-  });
-  if (!response.ok) return null;
-  const match = (await response.text()).match(/DY \(12M\)\s*:\s*([\d.,]+)%/);
-  return match ? Number(match[1].replace(/\./g, "").replace(",", ".")) / 100 : null;
-}
-
-let lastError: string | null = null;
-
-const cache = new Map<string, { at: number; asset: Asset | null }>();
-const CACHE_MS = 30 * 60 * 1000;
 
 async function fetchAsset(ticker: string, token: string): Promise<Asset | null> {
-  const hit = cache.get(ticker);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.asset;
-
-  const base = `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?token=${encodeURIComponent(token)}`;
-  // O plano grátis pode recusar o módulo de dividendos: cai para só a cotação
-  // e o DY vem do Investidor10.
-  let response = await fetch(`${base}&dividends=true`);
-  if (!response.ok) response = await fetch(base);
-  const json = (await response.json().catch(() => ({}))) as { results?: BrapiQuote[]; message?: string };
-  if (!response.ok) {
-    lastError = `brapi (${response.status}): ${json.message ?? "erro desconhecido"}`;
-    return null;
-  }
-  const quote = json.results?.[0];
-  if (!quote?.regularMarketPrice) return null;
-
-  // Só proventos já pagos: a brapi também lista os anunciados para datas futuras.
-  const now = Date.now();
-  const since = now - 365 * 24 * 60 * 60 * 1000;
-  const paid = quote.dividendsData?.cashDividends?.filter((d) => {
-    const at = d.paymentDate ? Date.parse(d.paymentDate) : NaN;
-    return at >= since && at <= now && d.rate;
-  });
-  const priceCents = Math.round(quote.regularMarketPrice * 100);
-  let dividends12mCents = paid?.length ? Math.round(paid.reduce((sum, d) => sum + (d.rate ?? 0), 0) * 100) : null;
-  const monthsPaid = paid?.length ? new Set(paid.map((d) => d.paymentDate!.slice(0, 7))).size : null;
-  if (dividends12mCents === null) {
-    const dy = await investidor10Yield(ticker).catch(() => null);
-    if (dy !== null) dividends12mCents = Math.round(dy * priceCents);
-  }
-  const dividendYield = dividends12mCents !== null ? dividends12mCents / priceCents : null;
+  const quote = await fetchQuote(ticker, token);
+  if (!quote) return null;
+  const { dividendYield, monthsPaid } = quote;
   const info = UNIVERSE[ticker];
-
   // Yield conta até 16% a.a. (acima disso costuma ser risco, não oportunidade);
   // regularidade mensal pesa porque o objetivo é renda caindo todo mês.
   const yieldScore = dividendYield !== null ? Math.min(dividendYield, 0.16) / 0.16 : 0.5;
   const regularity = monthsPaid !== null ? Math.min(monthsPaid, 12) / 12 : 0.5;
-  const asset: Asset = {
+  return {
     ticker,
-    name: quote.longName ?? quote.shortName ?? ticker,
+    name: quote.name,
     bucket: info?.bucket ?? null,
     note: info?.note ?? "",
-    priceCents,
-    dividends12mCents,
+    priceCents: quote.priceCents,
+    dividends12mCents: quote.dividends12mCents,
     monthsPaid,
     dividendYield,
     score: yieldScore * 0.6 + regularity * 0.4,
+    quote,
   };
-  cache.set(ticker, { at: Date.now(), asset });
-  return asset;
 }
 
 interface Pick {
@@ -214,30 +166,43 @@ export default async (request: Request): Promise<Response> => {
   const token = process.env.BRAPI_TOKEN;
   if (!token) return Response.json({ error: "BRAPI_TOKEN não configurado no Netlify." }, { status: 500 });
 
-  let body: { holdings?: Array<{ ticker?: unknown; quantity?: unknown }>; budgetCents?: unknown; goalCents?: unknown };
+  let body: {
+    holdings?: Array<{ ticker?: unknown; quantity?: unknown; avgPriceCents?: unknown }>;
+    budgetCents?: unknown;
+    goalCents?: unknown;
+    watchlist?: Record<string, unknown>;
+  };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "JSON inválido" }, { status: 400 });
   }
   const positions = new Map<string, number>();
+  const detailed = new Map<string, Position>();
   for (const h of body.holdings ?? []) {
     const ticker = String(h.ticker ?? "").toUpperCase();
     const quantity = Number(h.quantity);
     if (/^[A-Z0-9]{4,7}$/.test(ticker) && Number.isInteger(quantity) && quantity > 0) {
       positions.set(ticker, (positions.get(ticker) ?? 0) + quantity);
+      const avg = Math.round(Number(h.avgPriceCents));
+      detailed.set(ticker, { quantity: positions.get(ticker)!, avgPriceCents: avg > 0 ? avg : (detailed.get(ticker)?.avgPriceCents ?? null) });
     }
+  }
+  const watchlist: Record<string, number> = {};
+  for (const [ticker, cents] of Object.entries(body.watchlist ?? {}).slice(0, 30)) {
+    const value = Math.round(Number(cents));
+    if (/^[A-Z0-9]{4,7}$/.test(ticker) && value > 0) watchlist[ticker] = value;
   }
   const budgetCents = Math.max(0, Math.min(10_000_000, Math.round(Number(body.budgetCents) || 0)));
   const goalCents = Math.max(0, Math.min(2_000_000, Math.round(Number(body.goalCents) || 0)));
 
-  lastError = null;
+  quoteErrors.last = null;
   const tickers = [...new Set([...positions.keys(), ...Object.keys(UNIVERSE), ...Object.keys(IDEAS)])];
   const assets = (await Promise.all(tickers.map((t) => fetchAsset(t, token).catch(() => null)))).filter(
     (a): a is Asset => a !== null,
   );
   if (assets.length === 0) {
-    return Response.json({ error: lastError ?? "Nenhuma cotação disponível agora." }, { status: 502 });
+    return Response.json({ error: quoteErrors.last ?? "Nenhuma cotação disponível agora." }, { status: 502 });
   }
   const byTicker = new Map(assets.map((a) => [a.ticker, a]));
 
@@ -303,6 +268,8 @@ export default async (request: Request): Promise<Response> => {
       monthsPaid: a.monthsPaid,
     }));
 
+  const market = await buildMarket(detailed, watchlist, token, new Map(assets.map((a) => [a.ticker, a.quote])));
+
   return Response.json({
     generatedAt: new Date().toISOString(),
     portfolio,
@@ -315,6 +282,7 @@ export default async (request: Request): Promise<Response> => {
     ranking,
     simulation: simulate(),
     ideas,
+    market,
   });
 };
 

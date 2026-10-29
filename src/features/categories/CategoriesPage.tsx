@@ -78,8 +78,8 @@ function BudgetRow({ status }: { status: BudgetStatus }) {
     <li className="space-y-2.5 rounded-[1.25rem] bg-surface p-4">
       <div className="flex items-center gap-3">
         <CategoryIcon category={category} size="sm" />
-        <span className="flex-1 text-[15px] font-semibold">{category}</span>
-        <span className={cn("text-[13px] font-bold", state === "over" ? "text-negative" : state === "near" ? "text-warning" : "text-positive")}>
+        <span className="flex-1 text-[0.9375rem] font-semibold">{category}</span>
+        <span className={cn("text-[0.8125rem] font-bold", state === "over" ? "text-negative" : state === "near" ? "text-warning" : "text-positive")}>
           {label}
         </span>
       </div>
@@ -93,7 +93,7 @@ function BudgetRow({ status }: { status: BudgetStatus }) {
       >
         <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
       </div>
-      <div className="flex justify-between text-[13px] text-muted">
+      <div className="flex justify-between text-[0.8125rem] text-muted">
         <span>
           {formatBRL(spentCents)} de {formatBRL(limitCents)}
         </span>
@@ -154,7 +154,7 @@ function BudgetSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
           return (
             <li key={category} className="flex items-center gap-3">
               <CategoryIcon category={category} size="sm" />
-              <label htmlFor={`budget-${category}`} className="flex-1 text-[15px] font-medium">
+              <label htmlFor={`budget-${category}`} className="flex-1 text-[0.9375rem] font-medium">
                 {category}
                 {avg ? <span className="block text-xs text-muted">média {formatBRL(avg)}</span> : null}
               </label>
@@ -184,7 +184,7 @@ export default function CategoriesPage() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[13px] text-muted">{formatMonthName(month)}</p>
+        <p className="text-[0.8125rem] text-muted">{formatMonthName(month)}</p>
         <h2 className="text-xl font-bold">Para onde foi o dinheiro</h2>
       </div>
 
@@ -202,7 +202,7 @@ export default function CategoriesPage() {
       ) : (
         <Card className="flex flex-col items-center gap-5 sm:flex-row">
           <Donut rows={chart} total={total} />
-          <ul className="grid w-full flex-1 gap-2.5 text-[14px]">
+          <ul className="grid w-full flex-1 gap-2.5 text-[0.875rem]">
             {chart.map((r) => (
               <li key={r.category} className="flex items-center gap-2.5">
                 <span className="size-2.5 shrink-0 rounded-full" style={{ background: categoryStyle(r.category).color }} aria-hidden />
@@ -227,7 +227,7 @@ export default function CategoriesPage() {
           }
         />
         {budgets.length === 0 ? (
-          <p className="rounded-[1.25rem] border border-dashed border-line p-5 text-center text-[15px] text-muted">
+          <p className="rounded-[1.25rem] border border-dashed border-line p-5 text-center text-[0.9375rem] text-muted">
             Defina um limite para Mercado, Alimentação, Lazer… e acompanhe aqui quanto já foi.
           </p>
         ) : (
@@ -241,10 +241,10 @@ export default function CategoriesPage() {
 
       {rows.length > chart.length && (
         <details className="rounded-[1.25rem] border border-line bg-surface p-4">
-          <summary className="text-[15px] font-semibold marker:content-none">Todas as categorias ({rows.length})</summary>
+          <summary className="text-[0.9375rem] font-semibold marker:content-none">Todas as categorias ({rows.length})</summary>
           <ul className="mt-3 space-y-2">
             {rows.map((r) => (
-              <li key={r.category} className="flex items-center gap-3 text-[14px]">
+              <li key={r.category} className="flex items-center gap-3 text-[0.875rem]">
                 <CategoryIcon category={r.category} size="sm" />
                 <span className="flex-1">{r.category}</span>
                 <span className="tabular">{formatBRL(r.cents)}</span>

@@ -37,7 +37,7 @@ export default function ReliefPage() {
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[13px] text-muted">Parcelas</p>
+        <p className="text-[0.8125rem] text-muted">Parcelas</p>
         <h2 className="text-xl font-bold">Calendário de alívio</h2>
       </div>
 
@@ -50,7 +50,7 @@ export default function ReliefPage() {
         <ol className="grid h-32 grid-cols-6 items-end gap-2">
           {bars.map((b) => (
             <li key={b.month} className="flex h-full flex-col items-center justify-end gap-1.5">
-              {b.cents > 0 && <span className="text-[11px] font-bold tabular">{reais(b.cents).replace(/R\$\s/, "")}</span>}
+              {b.cents > 0 && <span className="text-[0.6875rem] font-bold tabular">{reais(b.cents).replace(/R\$\s/, "")}</span>}
               <span
                 className={cn("w-full rounded-lg", b.cents > 0 ? "bg-ink" : "bg-ink/15")}
                 style={{ height: `${Math.max(6, (b.cents / max) * 80)}px` }}
@@ -74,7 +74,7 @@ export default function ReliefPage() {
                   index === 0 ? "bg-lime" : index === 1 ? "bg-muted" : "bg-line",
                 )}
               />
-              <div className="flex items-baseline justify-between gap-3 text-[15px]">
+              <div className="flex items-baseline justify-between gap-3 text-[0.9375rem]">
                 <h3 className="font-bold">
                   {formatMonthName(r.month)}
                   <span className="font-normal text-muted">
@@ -86,7 +86,7 @@ export default function ReliefPage() {
               </div>
               <ul className="divide-y divide-line rounded-[1.25rem] bg-surface">
                 {r.ending.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[14px]">
+                  <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[0.875rem]">
                     <span className="min-w-0 truncate">{e.description}</span>
                     <span className="shrink-0 text-muted tabular">
                       {e.current}/{e.total} · {formatBRL(e.amountCents)}
